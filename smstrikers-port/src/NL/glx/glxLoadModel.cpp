@@ -203,14 +203,9 @@ static void PortPitchFill(glModel* pModel)
             u8* pv = (u8*)pos->address + (size_t)uniq[j] * pos->stride;
             PortStoreBEf32(pv, cx[j]);
             PortStoreBEf32(pv + 4, cy[j]);
-            PortStoreBEf32(pv + 8, 0.0f);
+            PortStoreBEf32(pv + 8, -0.05f); // just under the pitch so the real ground always wins where they overlap
             u8* pm = (u8*)uvm->address + (size_t)uniq[j] * uvm->stride;
             pm[0] = 0; pm[1] = 24; pm[2] = 0; pm[3] = 24;
-            if (col != NULL && col->stride == 4)
-            {
-                u8* pc = (u8*)col->address + (size_t)uniq[j] * col->stride;
-                pc[0] = pc[1] = pc[2] = pc[3] = 0xFF;
-            }
             if (haveFit && uv1 != NULL)
             {
                 u8* pu = (u8*)uv1->address + (size_t)uniq[j] * uv1->stride;
