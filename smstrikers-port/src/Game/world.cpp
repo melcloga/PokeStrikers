@@ -1,3 +1,5 @@
+#include <string>
+#include <stdlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "port/input.h"
@@ -1013,6 +1015,40 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
     objectData.m_uRenderLayer = pWorldObjectChunkData->m_uRenderLayer;
     objectData.m_uModelID = pWorldObjectChunkData->m_uModelHashID;
     objectData.m_fRadius = pWorldObjectChunkData->m_fRadius;
+
+    // PORT (mod): STRIKERS_LOG_OBJECTS=1 prints every world object; STRIKERS_HIDE_OBJECTS=<hex hash or name>,... skips them.
+    {
+        static const char* sLog = getenv("STRIKERS_LOG_OBJECTS");
+        static const char* sHide = getenv("STRIKERS_HIDE_OBJECTS");
+        if (sLog != NULL && sLog[0] == '1')
+        {
+            OSReport("WORLDOBJ hash=%08x model=%08x pos=(%.1f, %.1f, %.1f) radius=%.1f\n",
+                     (unsigned)objectData.m_uHashID, (unsigned)objectData.m_uModelID,
+                     objectData.m_worldMatrix.m41, objectData.m_worldMatrix.m42, objectData.m_worldMatrix.m43,
+                     objectData.m_fRadius);
+        }
+        if (sHide != NULL && sHide[0] != '\0')
+        {
+            std::string list(sHide);
+            size_t start = 0;
+            while (start <= list.size())
+            {
+                size_t end = list.find(',', start);
+                if (end == std::string::npos)
+                    end = list.size();
+                std::string tok = list.substr(start, end - start);
+                start = end + 1;
+                if (tok.empty())
+                    continue;
+                unsigned long h;
+                char* endp = NULL;
+                unsigned long v = strtoul(tok.c_str(), &endp, 16);
+                h = (endp != NULL && *endp == '\0') ? v : nlStringLowerHash(tok.c_str());
+                if (h == objectData.m_uHashID || h == objectData.m_uModelID)
+                    return;
+            }
+        }
+    }
 
     HandleObjectCreation(&objectData);
 }

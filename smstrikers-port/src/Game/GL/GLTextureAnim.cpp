@@ -1,4 +1,5 @@
 #include "Game/GL/GLTextureAnim.h"
+#include <stdlib.h>
 #include "NL/nlMemory.h"
 
 /**
@@ -149,7 +150,13 @@ void GLTextureAnim::Update(float dt)
         return;
     }
 
-    m_currentTime += dt;
+    // PORT (mod): STRIKERS_TEXANIM_SPEED=<float> scales every texture animation (water, goal lights); 1 = normal, 0.3 = slow.
+    static float sSpeed = []() {
+        const char* v = getenv("STRIKERS_TEXANIM_SPEED");
+        float f = (v != NULL && v[0] != '\0') ? (float)atof(v) : 1.0f;
+        return f > 0.0f ? f : 1.0f;
+    }();
+    m_currentTime += dt * sSpeed;
     GLAnimTex* frame = m_frames + m_currentFrame;
 
     if (m_currentTime >= frame->time)
