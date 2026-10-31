@@ -188,7 +188,7 @@ static void PortPitchFill(glModel* pModel)
         // decal. The right-hand end is already whole, so it is left exactly as the game made it.
         if ((xmin + xmax) * 0.5f >= 0.0f)
             continue;
-        const float rx0 = xmax - 0.1f;   // a hair into the half-disc
+        const float rx0 = -20.9f;        // a hair into the half-disc (its visible edge is at about -20.7)
         const float rx1 = -18.7f;        // a hair into the main pitch
         const float ry0 = -4.2f, ry1 = 5.2f;
 
