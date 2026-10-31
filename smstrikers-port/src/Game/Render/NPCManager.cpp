@@ -12,6 +12,30 @@
 #include "NL/nlMemory.h"
 #include "NL/nlString.h"
 #include "NL/gl/gl.h"
+#include <stdlib.h>
+#include <string.h>
+#include <string>
+
+// PORT (mod): STRIKERS_HIDE_NPCS=standupcamera,cameraguy,medic,securityguard skips spawning those sideline NPCs.
+static bool PortHideNpc(World* world, const char* name)
+{
+    static const char* sList = getenv("STRIKERS_HIDE_NPCS");
+    if (sList == NULL || sList[0] == '\0')
+        return false;
+    std::string list(sList);
+    size_t start = 0;
+    while (start <= list.size())
+    {
+        size_t end = list.find(',', start);
+        if (end == std::string::npos)
+            end = list.size();
+        std::string tok = list.substr(start, end - start);
+        start = end + 1;
+        if (!tok.empty() && world->CompareNameToGenericName(name, tok.c_str()) == 0)
+            return true;
+    }
+    return false;
+}
 
 struct NPCTemplateInfo
 {
@@ -65,7 +89,11 @@ NPCManager::NPCManager()
 
     while (stack->m_NumStackEntries > 0)
     {
-        if (world->CompareNameToGenericName(stack->m_Stack[stack->m_NumStackEntries - 1]->value->m_szName, "cameraguy") == 0)
+        if (PortHideNpc(world, stack->m_Stack[stack->m_NumStackEntries - 1]->value->m_szName))
+        {
+            // hidden by STRIKERS_HIDE_NPCS
+        }
+        else if (world->CompareNameToGenericName(stack->m_Stack[stack->m_NumStackEntries - 1]->value->m_szName, "cameraguy") == 0)
         {
             CreateNPCTemplate(0, true);
             cSAnim* foundAnim = mpInventorySAnim->Find("camera_idle");
