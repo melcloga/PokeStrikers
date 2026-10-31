@@ -37,12 +37,114 @@ void port_bmd_convert_models(void*, const void*, unsigned long, unsigned long);
 #include "Game/Sys/debug.h"
 #include "dolphin/os/OSCache.h"
 #include <string.h>
+#include <string>
+#include <stdio.h>
+#include <stdlib.h>
 
 extern GLInventory glInventory;
 
 static bool glIgnoreDuplicateModels;
 
 static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNumModels, bool bLoadTextures);
+
+// PORT (mod): STRIKERS_PITCH_UNIFY=the_palace/pitch[,other/name] gives that model's ground one planar texture mapping
+// (left edge of the model's bounds is u=0, top edge v=0) and points every packet at the first packet's texture, so
+// one replacement PNG of any size can paint the whole pitch with no tiling or mirroring.
+static bool PortPitchUnifyMatch(unsigned long id)
+{
+    static const char* sList = getenv("STRIKERS_PITCH_UNIFY");
+    if (sList == NULL || sList[0] == '\0')
+        return false;
+    std::string list(sList);
+    size_t start = 0;
+    while (start <= list.size())
+    {
+        size_t end = list.find(',', start);
+        if (end == std::string::npos)
+            end = list.size();
+        std::string tok = list.substr(start, end - start);
+        start = end + 1;
+        if (tok.empty())
+            continue;
+        char* endp = NULL;
+        unsigned long v = strtoul(tok.c_str(), &endp, 16);
+        unsigned long h = (endp != NULL && *endp == '\0') ? v : nlStringLowerHash(tok.c_str());
+        if (h == id)
+            return true;
+    }
+    return false;
+}
+
+static void PortPitchUnify(glModel* pModel)
+{
+    if (!PortPitchUnifyMatch(pModel->id))
+        return;
+    const int n = (int)pModel->numPackets;
+    if (n <= 0)
+        return;
+
+    float xmin = 1e30f, xmax = -1e30f, ymin = 1e30f, ymax = -1e30f;
+    int rewritten = 0;
+    for (int pass = 0; pass < 2; pass++)
+    {
+        glModelPacket* p = pModel->packets;
+        for (int k = 0; k < n; k++, p = (glModelPacket*)((u8*)p + sizeof(glModelPacket)))
+        {
+            const glModelStream* pos = NULL;
+            const glModelStream* uv = NULL;
+            for (int s = 0; s < (int)p->numStreams; s++)
+            {
+                if (p->streams[s].id == 0)
+                    pos = &p->streams[s];
+                else if (p->streams[s].id == 3)
+                    uv = &p->streams[s];
+            }
+            if (pos == NULL || uv == NULL || p->indexBuffer == 0 || pos->stride < 12 || uv->stride < 4)
+                continue;
+            const u16* idx = (const u16*)p->indexBuffer;
+            for (int i = 0; i < (int)p->numVertices; i++)
+            {
+                const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+                const float x = port_bef32(pv);
+                const float y = port_bef32(pv + 4);
+                if (pass == 0)
+                {
+                    if (x < xmin) xmin = x;
+                    if (x > xmax) xmax = x;
+                    if (y < ymin) ymin = y;
+                    if (y > ymax) ymax = y;
+                }
+                else
+                {
+                    float u = (x - xmin) / (xmax - xmin) * 1024.0f;
+                    float v = (ymax - y) / (ymax - ymin) * 1024.0f;
+                    int ui = (int)(u + 0.5f);
+                    int vi = (int)(v + 0.5f);
+                    if (ui < 0) ui = 0;
+                    if (ui > 1024) ui = 1024;
+                    if (vi < 0) vi = 0;
+                    if (vi > 1024) vi = 1024;
+                    u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+                    pu[0] = (u8)(ui >> 8);
+                    pu[1] = (u8)ui;
+                    pu[2] = (u8)(vi >> 8);
+                    pu[3] = (u8)vi;
+                    rewritten++;
+                }
+            }
+        }
+        if (pass == 0 && (!(xmax > xmin) || !(ymax > ymin)))
+            return;
+    }
+
+    glModelPacket* first = pModel->packets;
+    glModelPacket* p = first;
+    for (int k = 0; k < n; k++, p = (glModelPacket*)((u8*)p + sizeof(glModelPacket)))
+        p->state.texture[0] = first->state.texture[0];
+
+    fprintf(stderr, "PITCHUNIFY model=%08x packets=%d vertices=%d bounds x[%.2f,%.2f] y[%.2f,%.2f] texture=%08x\n",
+            (unsigned)pModel->id, n, rewritten, xmin, xmax, ymin, ymax, (unsigned)first->state.texture[0]);
+}
 
 // BMD model chunk type IDs.
 enum BMDChunkType
@@ -524,6 +626,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                 glModel* pModelEnd = pModels + numModels;
                 while (pModel < pModelEnd)
                 {
+                    PortPitchUnify(pModel);
                     glModelPacket* pPacket = pModel->packets;
                     while (pPacket < pModel->packets + pModel->numPackets)
                     {
