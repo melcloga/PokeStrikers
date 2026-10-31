@@ -1016,13 +1016,13 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
     objectData.m_uModelID = pWorldObjectChunkData->m_uModelHashID;
     objectData.m_fRadius = pWorldObjectChunkData->m_fRadius;
 
-    // PORT (mod): STRIKERS_LOG_OBJECTS=1 prints every world object; STRIKERS_HIDE_OBJECTS=<hex hash or name>,... skips them.
+    // PORT (mod): STRIKERS_LOG_OBJECTS=1 prints every world object to stderr (so STRIKERS_LOG=1 captures it); STRIKERS_HIDE_OBJECTS=<hex hash or name>,... skips them.
     {
         static const char* sLog = getenv("STRIKERS_LOG_OBJECTS");
         static const char* sHide = getenv("STRIKERS_HIDE_OBJECTS");
         if (sLog != NULL && sLog[0] == '1')
         {
-            OSReport("WORLDOBJ hash=%08x model=%08x pos=(%.1f, %.1f, %.1f) radius=%.1f\n",
+            fprintf(stderr, "WORLDOBJ hash=%08x model=%08x pos=(%.1f, %.1f, %.1f) radius=%.1f\n",
                      (unsigned)objectData.m_uHashID, (unsigned)objectData.m_uModelID,
                      objectData.m_worldMatrix.m41, objectData.m_worldMatrix.m42, objectData.m_worldMatrix.m43,
                      objectData.m_fRadius);
