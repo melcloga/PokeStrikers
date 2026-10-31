@@ -1006,6 +1006,12 @@ void SidelineExplodableManager::AssociateEffectWithNearbyFloatingCamera(Emission
     const char* floatingCamName = "environment/Sideline_Objects/standupcamera_base";
     SidelineExplodable* closest = GetClosestExplodable(position);
 
+    // PORT (mod): with STRIKERS_HIDE_NPCS removing every sideline camera there may be none left.
+    if (closest == NULL)
+    {
+        return;
+    }
+
     const nlMatrix4& closestMat = closest->GetWorldMatrix();
     float cdy = closestMat.e2[3][1] - position.y;
     float cdx = closestMat.e2[3][0] - position.x;
