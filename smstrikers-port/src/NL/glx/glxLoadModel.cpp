@@ -185,15 +185,15 @@ static void PortPitchFill(glModel* pModel)
             }
         }
         float rx0, rx1;
-        const float yEdge = (-ymin > ymax ? -ymin : ymax);
+        const float yEdge = (-ymin > ymax ? -ymin : ymax) + 0.5f;
         if ((xmin + xmax) * 0.5f < 0.0f)
         {
             rx0 = xmin;
-            rx1 = -20.0f;
+            rx1 = -18.8f;
         }
         else
         {
-            rx0 = 20.0f;
+            rx0 = 18.8f;
             rx1 = xmax;
         }
         const float cx[4] = { rx0, rx1, rx1, rx0 };
