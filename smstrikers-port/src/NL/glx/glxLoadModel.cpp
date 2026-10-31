@@ -75,6 +75,167 @@ static bool PortPitchUnifyMatch(unsigned long id)
     return false;
 }
 
+// PORT (mod): STRIKERS_PITCH_FILL=1 (with STRIKERS_PITCH_UNIFY) rebuilds each goal-end decal of the pitch model
+// (the packets that carry a mask UV stream) as one flat rectangle in the same ground plane, so the ground there is
+// plain pitch texture instead of the original odd-shaped patch with the underwater floor showing around it.
+static void PortStoreBEf32(u8* q, float f)
+{
+    u32 v;
+    memcpy(&v, &f, 4);
+    q[0] = (u8)(v >> 24);
+    q[1] = (u8)(v >> 16);
+    q[2] = (u8)(v >> 8);
+    q[3] = (u8)v;
+}
+
+static void PortPitchFill(glModel* pModel)
+{
+    const int n = (int)pModel->numPackets;
+    glModelPacket* p = pModel->packets;
+    for (int k = 0; k < n; k++, p = (glModelPacket*)((u8*)p + sizeof(glModelPacket)))
+    {
+        const glModelStream* pos = NULL;
+        const glModelStream* col = NULL;
+        const glModelStream* uv1 = NULL;
+        const glModelStream* uvm = NULL;
+        for (int s = 0; s < (int)p->numStreams; s++)
+        {
+            switch (p->streams[s].id)
+            {
+            case 0: pos = &p->streams[s]; break;
+            case 2: col = &p->streams[s]; break;
+            case 4: uv1 = &p->streams[s]; break;
+            case 5: uvm = &p->streams[s]; break;
+            }
+        }
+        if (pos == NULL || uvm == NULL || p->primType != 0 || p->indexBuffer == 0 || pos->stride < 12 || uvm->stride < 4
+            || p->numVertices < 6 || p->numVertices > 300)
+            continue;
+        u16* idx = (u16*)p->indexBuffer;
+        const int nv = (int)p->numVertices;
+        u16 uniq[64];
+        int nu = 0;
+        for (int i = 0; i < nv && nu < 64; i++)
+        {
+            bool seen = false;
+            for (int j = 0; j < nu; j++)
+                if (uniq[j] == idx[i])
+                    seen = true;
+            if (!seen)
+                uniq[nu++] = idx[i];
+        }
+        if (nu < 4)
+            continue;
+        float xmin = 1e30f, xmax = -1e30f, ymin = 1e30f, ymax = -1e30f;
+        for (int j = 0; j < nu; j++)
+        {
+            const u8* pv = (const u8*)pos->address + (size_t)uniq[j] * pos->stride;
+            const float x = port_bef32(pv), y = port_bef32(pv + 4);
+            if (x < xmin) xmin = x;
+            if (x > xmax) xmax = x;
+            if (y < ymin) ymin = y;
+            if (y > ymax) ymax = y;
+        }
+        // winding of the first real triangle
+        float sign = 1.0f;
+        for (int i = 0; i + 2 < nv; i += 3)
+        {
+            const u8* a = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            const u8* b = (const u8*)pos->address + (size_t)idx[i + 1] * pos->stride;
+            const u8* c = (const u8*)pos->address + (size_t)idx[i + 2] * pos->stride;
+            const float ar = (port_bef32(b) - port_bef32(a)) * (port_bef32(c + 4) - port_bef32(a + 4))
+                           - (port_bef32(b + 4) - port_bef32(a + 4)) * (port_bef32(c) - port_bef32(a));
+            if (ar > 1e-6f || ar < -1e-6f)
+            {
+                sign = ar > 0.0f ? 1.0f : -1.0f;
+                break;
+            }
+        }
+        // affine fit of the detail UV (stream 4) against x,y over the original vertices
+        double ua = 0, ub = 0, uc = 0, va = 0, vb = 0, vc = 0;
+        bool haveFit = false;
+        if (uv1 != NULL && uv1->stride >= 4)
+        {
+            double sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, sn = 0, sxu = 0, syu = 0, su = 0, sxv = 0, syv = 0, sv = 0;
+            for (int j = 0; j < nu; j++)
+            {
+                const u8* pv = (const u8*)pos->address + (size_t)uniq[j] * pos->stride;
+                const u8* pu = (const u8*)uv1->address + (size_t)uniq[j] * uv1->stride;
+                const double x = port_bef32(pv), y = port_bef32(pv + 4);
+                const double u = (double)(short)((pu[0] << 8) | pu[1]);
+                const double v = (double)(short)((pu[2] << 8) | pu[3]);
+                sxx += x * x; sxy += x * y; sx += x; syy += y * y; sy += y; sn += 1;
+                sxu += x * u; syu += y * u; su += u; sxv += x * v; syv += y * v; sv += v;
+            }
+            const double m[3][3] = { { sxx, sxy, sx }, { sxy, syy, sy }, { sx, sy, sn } };
+            const double det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                             - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                             + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+            if (det > 1e-9 || det < -1e-9)
+            {
+                auto solve = [&](double r0, double r1, double r2, double& A, double& B, double& C) {
+                    double dA = r0 * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (r1 * m[2][2] - m[1][2] * r2) + m[0][2] * (r1 * m[2][1] - m[1][1] * r2);
+                    double dB = m[0][0] * (r1 * m[2][2] - m[1][2] * r2) - r0 * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * r2 - r1 * m[2][0]);
+                    double dC = m[0][0] * (m[1][1] * r2 - r1 * m[2][1]) - m[0][1] * (m[1][0] * r2 - r1 * m[2][0]) + r0 * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+                    A = dA / det; B = dB / det; C = dC / det;
+                };
+                solve(sxu, syu, su, ua, ub, uc);
+                solve(sxv, syv, sv, va, vb, vc);
+                haveFit = true;
+            }
+        }
+        float rx0, rx1;
+        const float yEdge = (-ymin > ymax ? -ymin : ymax);
+        if ((xmin + xmax) * 0.5f < 0.0f)
+        {
+            rx0 = xmin;
+            rx1 = -20.0f;
+        }
+        else
+        {
+            rx0 = 20.0f;
+            rx1 = xmax;
+        }
+        const float cx[4] = { rx0, rx1, rx1, rx0 };
+        const float cy[4] = { -yEdge, -yEdge, yEdge, yEdge };
+        for (int j = 0; j < 4; j++)
+        {
+            u8* pv = (u8*)pos->address + (size_t)uniq[j] * pos->stride;
+            PortStoreBEf32(pv, cx[j]);
+            PortStoreBEf32(pv + 4, cy[j]);
+            PortStoreBEf32(pv + 8, 0.0f);
+            u8* pm = (u8*)uvm->address + (size_t)uniq[j] * uvm->stride;
+            pm[0] = 0; pm[1] = 24; pm[2] = 0; pm[3] = 24;
+            if (col != NULL && col->stride == 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)uniq[j] * col->stride;
+                pc[0] = pc[1] = pc[2] = pc[3] = 0xFF;
+            }
+            if (haveFit && uv1 != NULL)
+            {
+                u8* pu = (u8*)uv1->address + (size_t)uniq[j] * uv1->stride;
+                int u = (int)(ua * cx[j] + ub * cy[j] + uc);
+                int v = (int)(va * cx[j] + vb * cy[j] + vc);
+                if (u < -32768) u = -32768;
+                if (u > 32767) u = 32767;
+                if (v < -32768) v = -32768;
+                if (v > 32767) v = 32767;
+                pu[0] = (u8)((u >> 8) & 0xFF); pu[1] = (u8)(u & 0xFF);
+                pu[2] = (u8)((v >> 8) & 0xFF); pu[3] = (u8)(v & 0xFF);
+            }
+        }
+        const int t[6] = { 0, 1, 2, 0, 2, 3 };
+        for (int i = 0; i < nv; i++)
+            idx[i] = (i < 6) ? uniq[t[i]] : uniq[0];
+        if (sign < 0.0f)
+        {
+            idx[0] = uniq[0]; idx[1] = uniq[2]; idx[2] = uniq[1];
+            idx[3] = uniq[0]; idx[4] = uniq[3]; idx[5] = uniq[2];
+        }
+        fprintf(stderr, "PITCHFILL packet=%d x[%.2f,%.2f] y[%.2f,%.2f] winding=%.0f uvfit=%d\n", k, rx0, rx1, -yEdge, yEdge, sign, (int)haveFit);
+    }
+}
+
 static void PortPitchUnify(glModel* pModel)
 {
     if (!PortPitchUnifyMatch(pModel->id))
@@ -82,6 +243,11 @@ static void PortPitchUnify(glModel* pModel)
     const int n = (int)pModel->numPackets;
     if (n <= 0)
         return;
+    {
+        static const bool bFill = getenv("STRIKERS_PITCH_FILL") != NULL;
+        if (bFill)
+            PortPitchFill(pModel);
+    }
 
     float xmin = 1e30f, xmax = -1e30f, ymin = 1e30f, ymax = -1e30f;
     int rewritten = 0;
