@@ -184,31 +184,70 @@ static void PortPitchFill(glModel* pModel)
                 haveFit = true;
             }
         }
-        float rx0, rx1;
-        const float yEdge = (-ymin > ymax ? -ymin : ymax) + 2.0f;
-        if ((xmin + xmax) * 0.5f < 0.0f)
+        // Only the left-hand patch has a hole: the main pitch has a rectangular notch cut out beside the half-disc
+        // decal. The right-hand end is already whole, so it is left exactly as the game made it.
+        if ((xmin + xmax) * 0.5f >= 0.0f)
+            continue;
+        const float rx0 = xmax - 0.1f;   // a hair into the half-disc
+        const float rx1 = -18.7f;        // a hair into the main pitch
+        const float ry0 = -4.2f, ry1 = 5.2f;
+
+        // Convex hull of the original half-disc (monotone chain), so it can be redrawn with far fewer triangles and
+        // leave room in the index list for the notch patch.
+        int order[64];
+        for (int j = 0; j < nu; j++)
+            order[j] = j;
+        auto px = [&](int j) { return port_bef32((const u8*)pos->address + (size_t)uniq[j] * pos->stride); };
+        auto py = [&](int j) { return port_bef32((const u8*)pos->address + (size_t)uniq[j] * pos->stride + 4); };
+        for (int a = 1; a < nu; a++)
+            for (int b = a; b > 0 && (px(order[b]) < px(order[b - 1]) || (px(order[b]) == px(order[b - 1]) && py(order[b]) < py(order[b - 1]))); b--)
+            {
+                int t = order[b]; order[b] = order[b - 1]; order[b - 1] = t;
+            }
+        auto cross = [&](int o, int a, int b) {
+            return (px(a) - px(o)) * (py(b) - py(o)) - (py(a) - py(o)) * (px(b) - px(o));
+        };
+        int hull[130];
+        int hn = 0;
+        for (int a = 0; a < nu; a++)
         {
-            rx0 = xmin;
-            rx1 = -18.8f;
+            while (hn >= 2 && cross(hull[hn - 2], hull[hn - 1], order[a]) <= 1e-6f)
+                hn--;
+            hull[hn++] = order[a];
         }
-        else
+        const int lowerEnd = hn + 1;
+        for (int a = nu - 2; a >= 0; a--)
         {
-            rx0 = 18.8f;
-            rx1 = xmax;
+            while (hn >= lowerEnd && cross(hull[hn - 2], hull[hn - 1], order[a]) <= 1e-6f)
+                hn--;
+            hull[hn++] = order[a];
         }
+        hn--;
+        bool onHull[64] = {};
+        for (int a = 0; a < hn; a++)
+            onHull[hull[a]] = true;
+        int spare[4];
+        int ns = 0;
+        for (int j = 0; j < nu && ns < 4; j++)
+            if (!onHull[j])
+                spare[ns++] = j;
+        if (ns < 4 || (hn - 2 + 2) * 3 > nv)
+            continue;
+
         const float cx[4] = { rx0, rx1, rx1, rx0 };
-        const float cy[4] = { -yEdge, -yEdge, yEdge, yEdge };
+        const float cy[4] = { ry0, ry0, ry1, ry1 };
         for (int j = 0; j < 4; j++)
         {
-            u8* pv = (u8*)pos->address + (size_t)uniq[j] * pos->stride;
+            const int s = spare[j];
+            u8* pv = (u8*)pos->address + (size_t)uniq[s] * pos->stride;
             PortStoreBEf32(pv, cx[j]);
             PortStoreBEf32(pv + 4, cy[j]);
             PortStoreBEf32(pv + 8, -0.05f); // just under the pitch so the real ground always wins where they overlap
-            u8* pm = (u8*)uvm->address + (size_t)uniq[j] * uvm->stride;
+            u8* pm = (u8*)uvm->address + (size_t)uniq[s] * uvm->stride;
             pm[0] = 0; pm[1] = 24; pm[2] = 0; pm[3] = 24;
             if (haveFit && uv1 != NULL)
             {
-                u8* pu = (u8*)uv1->address + (size_t)uniq[j] * uv1->stride;
+                u8* pu = (u8*)uv1->address + (size_t)uniq[s] * uv1->stride;
                 int u = (int)(ua * cx[j] + ub * cy[j] + uc);
                 int v = (int)(va * cx[j] + vb * cy[j] + vc);
                 if (u < -32768) u = -32768;
@@ -219,15 +258,27 @@ static void PortPitchFill(glModel* pModel)
                 pu[2] = (u8)((v >> 8) & 0xFF); pu[3] = (u8)(v & 0xFF);
             }
         }
-        const int t[6] = { 0, 1, 2, 0, 2, 3 };
-        for (int i = 0; i < nv; i++)
-            idx[i] = (i < 6) ? uniq[t[i]] : uniq[0];
-        if (sign < 0.0f)
+        // hull vertices are CCW; flip triangles if the original winding was clockwise
+        int w = 0;
+        for (int a = 1; a + 1 < hn; a++)
         {
-            idx[0] = uniq[0]; idx[1] = uniq[2]; idx[2] = uniq[1];
-            idx[3] = uniq[0]; idx[4] = uniq[3]; idx[5] = uniq[2];
+            idx[w++] = uniq[hull[0]];
+            idx[w++] = uniq[hull[sign < 0.0f ? a + 1 : a]];
+            idx[w++] = uniq[hull[sign < 0.0f ? a : a + 1]];
         }
-        fprintf(stderr, "PITCHFILL packet=%d x[%.2f,%.2f] y[%.2f,%.2f] winding=%.0f uvfit=%d\n", k, rx0, rx1, -yEdge, yEdge, sign, (int)haveFit);
+        const int rect[2][3] = { { 0, 1, 2 }, { 0, 2, 3 } };
+        for (int a = 0; a < 2; a++)
+        {
+            idx[w++] = uniq[spare[rect[a][0]]];
+            idx[w++] = uniq[spare[rect[a][sign < 0.0f ? 2 : 1]]];
+            idx[w++] = uniq[spare[rect[a][sign < 0.0f ? 1 : 2]]];
+        }
+        while (w < nv)
+        {
+            idx[w] = idx[0];
+            w++;
+        }
+        fprintf(stderr, "PITCHFILL packet=%d hull=%d notch x[%.2f,%.2f] y[%.2f,%.2f] winding=%.0f uvfit=%d\n", k, hn, rx0, rx1, ry0, ry1, sign, (int)haveFit);
     }
 }
 
