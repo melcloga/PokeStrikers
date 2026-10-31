@@ -185,7 +185,7 @@ static void PortPitchFill(glModel* pModel)
             }
         }
         float rx0, rx1;
-        const float yEdge = (-ymin > ymax ? -ymin : ymax) + 0.5f;
+        const float yEdge = (-ymin > ymax ? -ymin : ymax) + 2.0f;
         if ((xmin + xmax) * 0.5f < 0.0f)
         {
             rx0 = xmin;
