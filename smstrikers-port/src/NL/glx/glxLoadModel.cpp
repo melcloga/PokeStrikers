@@ -282,6 +282,57 @@ static void PortPitchFill(glModel* pModel)
     }
 }
 
+// PORT (mod): STRIKERS_HIDE_PACKETS=<model>:<packet>[+<packet>...][,<model>:...] makes the listed packets of a model
+// draw nothing (every index points at one vertex, so all triangles collapse). <model> is a hex model hash or a name,
+// e.g. the_palace/goal01:1+2. Used to switch off parts of a model (stray rods, notches) without touching the others.
+static void PortHidePackets(glModel* pModel)
+{
+    static const char* sList = getenv("STRIKERS_HIDE_PACKETS");
+    if (sList == NULL || sList[0] == '\0')
+        return;
+    const std::string list(sList);
+    size_t start = 0;
+    while (start <= list.size())
+    {
+        size_t end = list.find(',', start);
+        if (end == std::string::npos)
+            end = list.size();
+        std::string tok = list.substr(start, end - start);
+        start = end + 1;
+        const size_t colon = tok.find(':');
+        if (colon == std::string::npos)
+            continue;
+        const std::string name = tok.substr(0, colon);
+        char* endp = NULL;
+        unsigned long v = strtoul(name.c_str(), &endp, 16);
+        unsigned long h = (endp != NULL && *endp == '\0') ? v : nlStringLowerHash(name.c_str());
+        if (h != pModel->id)
+            continue;
+        const std::string pk = tok.substr(colon + 1);
+        size_t a = 0;
+        while (a <= pk.size())
+        {
+            size_t b = pk.find('+', a);
+            if (b == std::string::npos)
+                b = pk.size();
+            const std::string num = pk.substr(a, b - a);
+            a = b + 1;
+            if (num.empty())
+                continue;
+            const int k = atoi(num.c_str());
+            if (k < 0 || k >= (int)pModel->numPackets)
+                continue;
+            glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+            if (p->indexBuffer == 0 || p->numVertices == 0)
+                continue;
+            u16* idx = (u16*)p->indexBuffer;
+            for (int i = 0; i < (int)p->numVertices; i++)
+                idx[i] = idx[0];
+            fprintf(stderr, "HIDEPACKET model=%08x packet=%d nv=%d\n", (unsigned)pModel->id, k, (int)p->numVertices);
+        }
+    }
+}
+
 static void PortPitchUnify(glModel* pModel)
 {
     if (!PortPitchUnifyMatch(pModel->id))
@@ -842,6 +893,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                 while (pModel < pModelEnd)
                 {
                     PortPitchUnify(pModel);
+                    PortHidePackets(pModel);
                     glModelPacket* pPacket = pModel->packets;
                     while (pPacket < pModel->packets + pModel->numPackets)
                     {
