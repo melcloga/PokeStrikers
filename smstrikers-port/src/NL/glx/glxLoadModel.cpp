@@ -242,7 +242,7 @@ static void PortPitchFill(glModel* pModel)
             u8* pv = (u8*)pos->address + (size_t)uniq[s] * pos->stride;
             PortStoreBEf32(pv, cx[j]);
             PortStoreBEf32(pv + 4, cy[j]);
-            PortStoreBEf32(pv + 8, 0.0f); // exactly ground level: any drop shifts the lines by parallax; overlapping layers are identical anyway
+            PortStoreBEf32(pv + 8, 0.006f); // a hair above the ground: wins every depth test (no flicker) yet shifts lines by under a pixel
             u8* pm = (u8*)uvm->address + (size_t)uniq[s] * uvm->stride;
             pm[0] = 0; pm[1] = 24; pm[2] = 0; pm[3] = 24;
             if (haveFit && uv1 != NULL)
