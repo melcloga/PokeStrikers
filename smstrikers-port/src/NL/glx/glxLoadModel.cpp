@@ -333,6 +333,92 @@ static void PortHidePackets(glModel* pModel)
     }
 }
 
+// PORT (mod): STRIKERS_GOAL_FIX=1 closes the broken-off notches in the Palace goal rims. The rim is one mesh (packet 0
+// of the goal01 / goal05 models); each notch is a patch of irregular triangles. This swaps those triangles for
+// whole faces built from the neighbouring intact vertices (the two curved-rim spans also get a new middle ring,
+// stored in the vertices that the notch triangles no longer use). Generated offline from the shipped model data.
+static const int kgoal05_tris[] = { 17, 31, 32, 10, 18, 10, 11, 31, 385, 376, 384, 23, 387, 23, 22, 376, 388, 32, 3, 19, 389, 19, 10, 32, 390, 0, 0, 0, 391, 0, 0, 0, 392, 0, 0, 0, 393, 0, 0, 0, 394, 0, 0, 0, 395, 0, 0, 0, 396, 0, 0, 0, 397, 0, 0, 0, 398, 0, 0, 0, 399, 0, 0, 0, 400, 0, 0, 0, 401, 0, 0, 0, 402, 0, 0, 0, 403, 0, 0, 0, 404, 0, 0, 0, 405, 0, 0, 0, 406, 0, 0, 0, 407, 0, 0, 0, 408, 0, 0, 0, 409, 0, 0, 0, 410, 0, 0, 0, 411, 0, 0, 0, 412, 0, 0, 0, 413, 0, 0, 0, 414, 0, 0, 0, 415, 0, 0, 0, 416, 0, 0, 0, 417, 0, 0, 0, 418, 0, 0, 0, 419, 0, 0, 0, 422, 30, 21, 41, 424, 41, 40, 30, 425, 33, 30, 40, 426, 40, 44, 33, 427, 21, 20, 296, 428, 296, 41, 21, 429, 0, 0, 0, 430, 0, 0, 0, 431, 0, 0, 0, 432, 0, 0, 0, 433, 0, 0, 0, 434, 0, 0, 0, 435, 0, 0, 0, 37, 40, 41, 55, 42, 55, 69, 40, 43, 50, 48, 47, 44, 47, 49, 50, 45, 56, 59, 66, 46, 66, 60, 56, 302, 41, 296, 36, 303, 36, 55, 41, 304, 0, 0, 0, 305, 0, 0, 0, 306, 0, 0, 0, 307, 0, 0, 0, 308, 0, 0, 0, 309, 0, 0, 0, 310, 0, 0, 0, 311, 0, 0, 0, 312, 0, 0, 0, 313, 0, 0, 0, 314, 0, 0, 0, 315, 0, 0, 0, 316, 0, 0, 0, 317, 0, 0, 0, 318, 0, 0, 0, 75, 84, 83, 106, 76, 105, 106, 90, 79, 106, 105, 84, 80, 90, 89, 105, 81, 109, 86, 85, 82, 93, 109, 110, 99, 85, 110, 109, 100, 110, 94, 93, 101, 265, 112, 88, 102, 100, 99, 112, 103, 88, 87, 265, 104, 112, 265, 100, 263, 84, 105, 110, 264, 105, 89, 94, 265, 110, 85, 84, 266, 94, 110, 105, 267, 121, 266, 265, 268, 266, 111, 100, 269, 265, 87, 121, 270, 100, 265, 266, 271, 268, 267, 127, 272, 128, 131, 267, 273, 127, 126, 268, 274, 267, 268, 128, 275, 83, 142, 269, 276, 106, 269, 134, 277, 269, 106, 83, 278, 134, 90, 106, 279, 145, 88, 112, 280, 270, 112, 99, 281, 112, 270, 145, 282, 99, 137, 270, 283, 0, 0, 0, 284, 0, 0, 0, 285, 0, 0, 0, 286, 0, 0, 0, 287, 0, 0, 0, 288, 0, 0, 0, 289, 0, 0, 0, 290, 0, 0, 0, 291, 0, 0, 0, 292, 0, 0, 0, 293, 0, 0, 0, 294, 0, 0, 0, 295, 0, 0, 0, 296, 0, 0, 0, 297, 0, 0, 0, 298, 0, 0, 0, 299, 0, 0, 0, 300, 0, 0, 0, 301, 0, 0, 0 };
+static const int kgoal05_nTris = 123;
+static const int kgoal05_verts[] = { 105, -70, -520, 322, 41, 41, -24, 171, 171, 171, 255, 542, 22, 106, -70, -520, 384, 41, 42, 23, 171, 171, 171, 255, 542, -888, 109, -134, -584, 314, -17, -18, -58, 171, 171, 171, 255, 542, 1019, 110, -75, -525, 314, 16, 16, -59, 171, 171, 171, 255, 542, 114, 112, -139, -590, 384, -41, -42, 23, 171, 171, 171, 255, 542, -888, 265, -139, -590, 322, -41, -42, -24, 171, 171, 171, 255, 542, 22, 266, -134, -584, 314, -17, -18, -58, 171, 171, 171, 255, 542, 114, 267, -75, -525, 392, 17, 17, 59, 171, 171, 171, 255, 542, 114, 268, -134, -584, 392, -18, -18, 58, 171, 171, 171, 255, 542, 1019, 269, -75, -525, 392, 17, 17, 59, 171, 171, 171, 255, 542, -984, 270, -134, -584, 392, -18, -18, 58, 171, 171, 171, 255, 542, -984 };
+static const int kgoal05_nVerts = 11;
+static const unsigned kgoal05_id = 0x67842b9cu;
+static const int kgoal01_tris[] = { 42, 40, 41, 58, 49, 58, 71, 40, 50, 50, 48, 47, 51, 47, 49, 50, 52, 59, 62, 69, 53, 69, 63, 59, 273, 41, 56, 36, 274, 36, 58, 41, 275, 0, 0, 0, 276, 0, 0, 0, 277, 0, 0, 0, 278, 0, 0, 0, 279, 0, 0, 0, 280, 0, 0, 0, 281, 0, 0, 0, 282, 0, 0, 0, 283, 0, 0, 0, 284, 0, 0, 0, 285, 0, 0, 0, 286, 0, 0, 0, 287, 0, 0, 0, 288, 0, 0, 0, 289, 0, 0, 0, 84, 87, 86, 109, 85, 108, 109, 93, 88, 109, 108, 87, 89, 93, 92, 108, 90, 112, 89, 88, 91, 96, 112, 113, 108, 88, 113, 112, 109, 113, 97, 96, 110, 230, 115, 91, 111, 103, 102, 115, 112, 91, 90, 230, 113, 115, 230, 103, 234, 87, 108, 113, 235, 108, 92, 97, 236, 113, 88, 87, 237, 97, 113, 108, 238, 124, 231, 230, 239, 231, 114, 103, 240, 230, 90, 124, 241, 103, 230, 231, 242, 233, 232, 130, 243, 131, 134, 232, 244, 130, 129, 233, 245, 232, 233, 131, 246, 86, 145, 234, 247, 109, 234, 137, 248, 234, 109, 86, 249, 137, 93, 109, 250, 148, 91, 115, 251, 235, 115, 102, 252, 115, 235, 148, 253, 102, 140, 235, 254, 0, 0, 0, 255, 0, 0, 0, 256, 0, 0, 0, 257, 0, 0, 0, 258, 0, 0, 0, 259, 0, 0, 0, 260, 0, 0, 0, 261, 0, 0, 0, 262, 0, 0, 0, 263, 0, 0, 0, 264, 0, 0, 0, 265, 0, 0, 0, 266, 0, 0, 0, 267, 0, 0, 0, 268, 0, 0, 0, 269, 0, 0, 0, 270, 0, 0, 0, 271, 0, 0, 0, 272, 0, 0, 0 };
+static const int kgoal01_nTris = 74;
+static const int kgoal01_verts[] = { 108, 70, 520, 322, -41, -41, -24, 171, 171, 171, 255, 542, 22, 109, 70, 520, 384, -41, -42, 23, 171, 171, 171, 255, 542, -888, 112, 134, 584, 314, 17, 18, -58, 171, 171, 171, 255, 542, 1019, 113, 75, 525, 314, -16, -16, -59, 171, 171, 171, 255, 542, 114, 115, 139, 590, 384, 41, 42, 23, 171, 171, 171, 255, 542, -888, 230, 139, 590, 322, 41, 42, -24, 171, 171, 171, 255, 542, 22, 231, 134, 584, 314, 17, 18, -58, 171, 171, 171, 255, 542, 114, 232, 75, 525, 392, -17, -17, 59, 171, 171, 171, 255, 542, 114, 233, 134, 584, 392, 18, 18, 58, 171, 171, 171, 255, 542, 1019, 234, 75, 525, 392, -17, -17, 59, 171, 171, 171, 255, 542, -984, 235, 134, 584, 392, 18, 18, 58, 171, 171, 171, 255, 542, -984 };
+static const int kgoal01_nVerts = 11;
+static const unsigned kgoal01_id = 0x67842b98u;
+
+static void PortStoreBE16(u8* q, int v)
+{
+    q[0] = (u8)((v >> 8) & 0xFF);
+    q[1] = (u8)(v & 0xFF);
+}
+
+static void PortGoalFixOne(glModel* pModel, const int* tris, int nTris, const int* verts, int nVerts)
+{
+    if (pModel->numPackets < 1)
+        return;
+    glModelPacket* p = pModel->packets;
+    const glModelStream* pos = NULL;
+    const glModelStream* nrm = NULL;
+    const glModelStream* col = NULL;
+    const glModelStream* uv = NULL;
+    for (int s = 0; s < (int)p->numStreams; s++)
+    {
+        switch (p->streams[s].id)
+        {
+        case 0: pos = &p->streams[s]; break;
+        case 1: nrm = &p->streams[s]; break;
+        case 2: col = &p->streams[s]; break;
+        case 3: uv = &p->streams[s]; break;
+        }
+    }
+    if (pos == NULL || nrm == NULL || col == NULL || uv == NULL || p->indexBuffer == 0 || pos->stride != 6 || nrm->stride != 3
+        || col->stride != 4 || uv->stride != 4)
+        return;
+    const int nv = (int)p->numVertices;
+    if (nv < 3)
+        return;
+    u16* idx = (u16*)p->indexBuffer;
+    for (int i = 0; i < nVerts; i++)
+    {
+        const int* e = verts + i * 14;
+        const int v = e[0];
+        u8* pp = (u8*)pos->address + (size_t)v * 6;
+        PortStoreBE16(pp, e[1]); PortStoreBE16(pp + 2, e[2]); PortStoreBE16(pp + 4, e[3]);
+        u8* pn = (u8*)nrm->address + (size_t)v * 3;
+        pn[0] = (u8)(s8)e[4]; pn[1] = (u8)(s8)e[5]; pn[2] = (u8)(s8)e[6];
+        u8* pc = (u8*)col->address + (size_t)v * 4;
+        pc[0] = (u8)e[7]; pc[1] = (u8)e[8]; pc[2] = (u8)e[9]; pc[3] = (u8)e[10];
+        u8* pu = (u8*)uv->address + (size_t)v * 4;
+        PortStoreBE16(pu, e[11]); PortStoreBE16(pu + 2, e[12]);
+    }
+    int written = 0;
+    for (int i = 0; i < nTris; i++)
+    {
+        const int* e = tris + i * 4;
+        const int k = e[0];
+        if (k < 0 || (k + 1) * 3 > nv)
+            continue;
+        idx[k * 3] = (u16)e[1];
+        idx[k * 3 + 1] = (u16)e[2];
+        idx[k * 3 + 2] = (u16)e[3];
+        written++;
+    }
+    fprintf(stderr, "GOALFIX model=%08x tris=%d verts=%d\n", (unsigned)pModel->id, written, nVerts);
+}
+
+static void PortGoalFix(glModel* pModel)
+{
+    static const bool bOn = getenv("STRIKERS_GOAL_FIX") != NULL;
+    if (!bOn)
+        return;
+    if (pModel->id == kgoal05_id)
+        PortGoalFixOne(pModel, kgoal05_tris, kgoal05_nTris, kgoal05_verts, kgoal05_nVerts);
+    else if (pModel->id == kgoal01_id)
+        PortGoalFixOne(pModel, kgoal01_tris, kgoal01_nTris, kgoal01_verts, kgoal01_nVerts);
+}
+
 static void PortPitchUnify(glModel* pModel)
 {
     if (!PortPitchUnifyMatch(pModel->id))
@@ -894,6 +980,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                 {
                     PortPitchUnify(pModel);
                     PortHidePackets(pModel);
+                    PortGoalFix(pModel);
                     glModelPacket* pPacket = pModel->packets;
                     while (pPacket < pModel->packets + pModel->numPackets)
                     {
