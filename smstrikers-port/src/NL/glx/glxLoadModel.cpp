@@ -336,6 +336,9 @@ static void PortPitchUnify(glModel* pModel)
                     if (ui > 1024) ui = 1024;
                     if (vi < 0) vi = 0;
                     if (vi > 1024) vi = 1024;
+                    // Snap the vertex onto the UV grid (1/1024 of the model) so neighbouring pieces of ground agree exactly.
+                    PortStoreBEf32((u8*)pos->address + (size_t)idx[i] * pos->stride, xmin + (float)ui / 1024.0f * (xmax - xmin));
+                    PortStoreBEf32((u8*)pos->address + (size_t)idx[i] * pos->stride + 4, ymax - (float)vi / 1024.0f * (ymax - ymin));
                     u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
                     pu[0] = (u8)(ui >> 8);
                     pu[1] = (u8)ui;
