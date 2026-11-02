@@ -1019,7 +1019,14 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
     // PORT (mod): STRIKERS_LOG_OBJECTS=1 prints every world object to stderr (so STRIKERS_LOG=1 captures it); STRIKERS_HIDE_OBJECTS=<hex hash or name>,... skips them.
     {
         static const char* sLog = getenv("STRIKERS_LOG_OBJECTS");
-        static const char* sHide = getenv("STRIKERS_HIDE_OBJECTS");
+        static const char* sHideEnv = getenv("STRIKERS_HIDE_OBJECTS");
+        // Built in: Pipeline Central's two goal-end lift plates exist on one end only, so they are hidden.
+        // STRIKERS_HIDE_OBJECTS adds more; STRIKERS_HIDE_OBJECTS=0 turns the built-in ones off.
+        static const std::string sHideAll = (sHideEnv != NULL && strcmp(sHideEnv, "0") == 0)
+            ? std::string()
+            : std::string("mario_stadium/lift03,mario_stadium/lift04") +
+                  ((sHideEnv != NULL && sHideEnv[0] != '\0') ? std::string(",") + sHideEnv : std::string());
+        const char* sHide = sHideAll.c_str();
         if (sLog != NULL && sLog[0] == '1')
         {
             fprintf(stderr, "WORLDOBJ hash=%08x model=%08x pos=(%.1f, %.1f, %.1f) radius=%.1f\n",
