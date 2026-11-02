@@ -36,8 +36,11 @@ void port_bmd_convert_models(void*, const void*, unsigned long, unsigned long);
 #include "Game/SAnim.h"
 #include "Game/Sys/debug.h"
 #include "dolphin/os/OSCache.h"
+#include <math.h>
+#include <set>
 #include <string.h>
 #include <string>
+#include <vector>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -417,6 +420,159 @@ static void PortGoalFix(glModel* pModel)
         PortGoalFixOne(pModel, kgoal05_tris, kgoal05_nTris, kgoal05_verts, kgoal05_nVerts);
     else if (pModel->id == kgoal01_id)
         PortGoalFixOne(pModel, kgoal01_tris, kgoal01_nTris, kgoal01_verts, kgoal01_nVerts);
+}
+
+
+// PORT (mod): sign boards that read backwards. The stadium builds its four sign walls as mirror copies of each
+// other but keeps the UVs, so an ad reads correctly on one wall and mirrored on the other (and mirrored on the
+// opposite side of the field). For every packet that uses one of the listed ad textures this works out, from the
+// packet's own vertices and normals, whether U runs left to right as seen from the front, and if not mirrors U
+// inside its own tile so the texture reads correctly from everywhere. STRIKERS_SIGN_FIX=0 turns it off. To cover
+// another stadium, add the hash range of its ad textures (the glt names, sequential in the Palace) to the table.
+struct PortSignRange
+{
+    u32 lo;
+    u32 hi;
+};
+static const PortSignRange kPortSignRanges[] = {
+    { 0x82D5B11Fu, 0x82D5B126u }, // the_palace: eight 256x64 ad textures
+};
+
+static bool PortSignTexture(u32 hash)
+{
+    for (size_t i = 0; i < sizeof(kPortSignRanges) / sizeof(kPortSignRanges[0]); i++)
+    {
+        if (hash >= kPortSignRanges[i].lo && hash <= kPortSignRanges[i].hi)
+            return true;
+    }
+    return false;
+}
+
+static void PortSignOrient(glModel* pModel)
+{
+    static const bool bOff = getenv("STRIKERS_SIGN_FIX") != NULL && getenv("STRIKERS_SIGN_FIX")[0] == '0';
+    if (bOff)
+        return;
+    struct SignPacket
+    {
+        const glModelStream* uv;
+        const u16* idx;
+        int nv;
+        bool reversed;
+    };
+    std::vector<SignPacket> found;
+    const int n = (int)pModel->numPackets;
+    glModelPacket* p = pModel->packets;
+    for (int k = 0; k < n; k++, p = (glModelPacket*)((u8*)p + sizeof(glModelPacket)))
+    {
+        if (!PortSignTexture((u32)p->state.texture[0]) || p->indexBuffer == 0)
+            continue;
+        const glModelStream* pos = NULL;
+        const glModelStream* nrm = NULL;
+        const glModelStream* uv = NULL;
+        for (int s = 0; s < (int)p->numStreams; s++)
+        {
+            if (p->streams[s].id == 0)
+                pos = &p->streams[s];
+            else if (p->streams[s].id == 1)
+                nrm = &p->streams[s];
+            else if (p->streams[s].id == 3)
+                uv = &p->streams[s];
+        }
+        const int nv = (int)p->numVertices;
+        if (pos == NULL || nrm == NULL || uv == NULL || nrm->stride < 3 || uv->stride < 4 || (pos->stride != 6 && pos->stride < 12) ||
+            nv < 3)
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+
+        double nx = 0, ny = 0, nz = 0, um = 0, px = 0, py = 0;
+        std::vector<double> U(nv), X(nv), Y(nv);
+        for (int i = 0; i < nv; i++)
+        {
+            const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            if (pos->stride == 6)
+            {
+                X[i] = (double)(s16)port_be16(pv) / 256.0;
+                Y[i] = (double)(s16)port_be16(pv + 2) / 256.0;
+            }
+            else
+            {
+                X[i] = port_bef32(pv);
+                Y[i] = port_bef32(pv + 4);
+            }
+            const s8* pn = (const s8*)((const u8*)nrm->address + (size_t)idx[i] * nrm->stride);
+            nx += pn[0];
+            ny += pn[1];
+            nz += pn[2];
+            const u8* pu = (const u8*)uv->address + (size_t)idx[i] * uv->stride;
+            U[i] = (double)(s16)port_be16(pu) / 1024.0;
+            um += U[i];
+            px += X[i];
+            py += Y[i];
+        }
+        SignPacket sp;
+        sp.uv = uv;
+        sp.idx = idx;
+        sp.nv = nv;
+        sp.reversed = false;
+        const double nl = sqrt(nx * nx + ny * ny + nz * nz);
+        if (nl > 1e-6 && fabs(nz / nl) <= 0.8) // a board facing the pitch, not a floor or ceiling
+        {
+            nx /= nl;
+            ny /= nl;
+            um /= nv;
+            px /= nv;
+            py /= nv;
+            double dx = 0, dy = 0;
+            for (int i = 0; i < nv; i++)
+            {
+                dx += (U[i] - um) * (X[i] - px);
+                dy += (U[i] - um) * (Y[i] - py);
+            }
+            // The viewer faces the board, looking along -normal with +Z up, so their right-hand direction is (-ny, nx).
+            sp.reversed = (dx * -ny + dy * nx) < 0.0;
+        }
+        found.push_back(sp);
+    }
+
+    // Boards that share a vertex with a board that reads the other way are left alone, since one vertex cannot be
+    // mirrored for one and not the other.
+    std::set<uintptr_t> keep;
+    for (size_t i = 0; i < found.size(); i++)
+    {
+        if (found[i].reversed)
+            continue;
+        for (int v = 0; v < found[i].nv; v++)
+            keep.insert((uintptr_t)found[i].uv->address + (size_t)found[i].idx[v] * found[i].uv->stride);
+    }
+    std::set<uintptr_t> done;
+    int flipped = 0;
+    for (size_t i = 0; i < found.size(); i++)
+    {
+        if (!found[i].reversed)
+            continue;
+        bool shared = false;
+        for (int v = 0; v < found[i].nv && !shared; v++)
+            shared = keep.count((uintptr_t)found[i].uv->address + (size_t)found[i].idx[v] * found[i].uv->stride) != 0;
+        if (shared)
+            continue;
+        for (int v = 0; v < found[i].nv; v++)
+        {
+            u8* pu = (u8*)found[i].uv->address + (size_t)found[i].idx[v] * found[i].uv->stride;
+            if (!done.insert((uintptr_t)pu).second)
+                continue;
+            // u -> 1 - u for every vertex of the board, so boards that share a vertex stay in step. The texture
+            // repeats, so the whole-tile offset for boards that started at -1 changes nothing.
+            int ui = 1024 - (int)(s16)port_be16(pu);
+            if (ui < -32768) ui = -32768;
+            if (ui > 32767) ui = 32767;
+            pu[0] = (u8)((ui >> 8) & 0xFF);
+            pu[1] = (u8)(ui & 0xFF);
+        }
+        flipped++;
+    }
+    if (flipped > 0)
+        fprintf(stderr, "SIGNFIX model=%08x packets flipped=%d\n", (unsigned)pModel->id, flipped);
 }
 
 static void PortPitchUnify(glModel* pModel)
@@ -981,6 +1137,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortPitchUnify(pModel);
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
+                    PortSignOrient(pModel);
                     glModelPacket* pPacket = pModel->packets;
                     while (pPacket < pModel->packets + pModel->numPackets)
                     {
