@@ -295,10 +295,14 @@ static void PortPitchFill(glModel* pModel)
 // e.g. the_palace/goal01:1+2. Used to switch off parts of a model (stray rods, notches) without touching the others.
 static void PortHidePackets(glModel* pModel)
 {
-    static const char* sList = getenv("STRIKERS_HIDE_PACKETS");
-    if (sList == NULL || sList[0] == '\0')
+    // Built in: Pipeline Central's goal-end lift plates (they exist on one end only). Hidden at model level so it
+    // holds however the world creates them. STRIKERS_HIDE_PACKETS adds more; =0 turns the built-in ones off.
+    static const char* sEnv = getenv("STRIKERS_HIDE_PACKETS");
+    if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return;
-    const std::string list(sList);
+    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3") +
+                                    ((sEnv != NULL && sEnv[0] != '\0') ? std::string(",") + sEnv : std::string());
+    const std::string list(sAll);
     size_t start = 0;
     while (start <= list.size())
     {
