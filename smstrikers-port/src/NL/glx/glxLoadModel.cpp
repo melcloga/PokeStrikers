@@ -300,7 +300,7 @@ static void PortHidePackets(glModel* pModel)
     static const char* sEnv = getenv("STRIKERS_HIDE_PACKETS");
     if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return;
-    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3") +
+    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3,mario_stadium/netshadow_02:0") +
                                     ((sEnv != NULL && sEnv[0] != '\0') ? std::string(",") + sEnv : std::string());
     const std::string list(sAll);
     size_t start = 0;
@@ -688,6 +688,99 @@ static void PortPitchUnify(glModel* pModel)
 
     fprintf(stderr, "PITCHUNIFY model=%08x packets=%d vertices=%d bounds x[%.2f,%.2f] y[%.2f,%.2f] texture=%08x\n",
             (unsigned)pModel->id, n, rewritten, xmin, xmax, ymin, ymax, (unsigned)first->state.texture[0]);
+}
+
+
+// PORT (mod): Pipeline Central's field is newfield01 (see PortPitchUnify) but it has a hole at the left goal, and the
+// goal floors / a corner plate piece sit at the ends. This gives those pieces the same world-space planar mapping
+// and the same texture as the field model, so the whole playing area (behind the goals too) is one picture.
+// Each entry: model name hash, packet mask (bit k = packet k), world transform of its single instance (2x2 diagonal
+// signs and translation, from the .wld).
+struct PortFieldExtra
+{
+    const char* name;
+    unsigned packetMask;
+    float sx, sy, tx, ty;
+};
+static const PortFieldExtra kPortFieldExtras[] = {
+    { "mario_stadium/netshadow_01", 0x7u, -1.0f, -1.0f, -20.2149f, 3.7794f },
+    { "mario_stadium/goalpost_floor01", 0x1u, 1.0f, 1.0f, -22.8025f, 0.0f },
+    { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f },
+    { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f },
+    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f },
+    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f },
+};
+
+static void PortFieldExtras(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_FIELD_EXTRAS");
+    if (sOff != NULL && strcmp(sOff, "0") == 0)
+        return;
+    const PortFieldExtra* e = NULL;
+    for (size_t i = 0; i < sizeof(kPortFieldExtras) / sizeof(kPortFieldExtras[0]); i++)
+    {
+        if (nlStringLowerHash(kPortFieldExtras[i].name) == pModel->id)
+        {
+            e = &kPortFieldExtras[i];
+            break;
+        }
+    }
+    if (e == NULL)
+        return;
+    // newfield01 model-space bounds and instance transform (x scaled 1.5, y shifted -0.1717).
+    const float xmin = -16.590908f, xmax = 16.590902f, ymin = -14.074756f, ymax = 14.519859f;
+    int done = 0;
+    for (int k = 0; k < (int)pModel->numPackets && k < 32; k++)
+    {
+        if (!(e->packetMask & (1u << k)))
+            continue;
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        const glModelStream* pos = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 0)
+                pos = &p->streams[st];
+            else if (p->streams[st].id == 3)
+                uv = &p->streams[st];
+        }
+        if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4)
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            float x, y;
+            if (pos->stride >= 12)
+            {
+                x = port_bef32(pv);
+                y = port_bef32(pv + 4);
+            }
+            else
+            {
+                x = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
+                y = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f;
+            }
+            const float wx = e->sx * x + e->tx;
+            const float wy = e->sy * y + e->ty;
+            const float u = (wx / 1.5f - xmin) / (xmax - xmin) * 1024.0f;
+            const float v = (ymax - (wy + 0.1717f)) / (ymax - ymin) * 1024.0f;
+            int ui = (int)(u + (u < 0 ? -0.5f : 0.5f));
+            int vi = (int)(v + (v < 0 ? -0.5f : 0.5f));
+            if (ui < -32768) ui = -32768;
+            if (ui > 32767) ui = 32767;
+            if (vi < -32768) vi = -32768;
+            if (vi > 32767) vi = 32767;
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            pu[0] = (u8)((ui >> 8) & 0xFF);
+            pu[1] = (u8)(ui & 0xFF);
+            pu[2] = (u8)((vi >> 8) & 0xFF);
+            pu[3] = (u8)(vi & 0xFF);
+        }
+        p->state.texture[0] = (uintptr_t)0xf406f013u;
+        done++;
+    }
+    fprintf(stderr, "FIELDEXTRA model=%08x packets=%d\n", (unsigned)pModel->id, done);
 }
 
 // BMD model chunk type IDs.
@@ -1171,6 +1264,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                 while (pModel < pModelEnd)
                 {
                     PortPitchUnify(pModel);
+                    PortFieldExtras(pModel);
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
                     PortSignOrient(pModel);
