@@ -36,6 +36,7 @@ void port_bmd_convert_models(void*, const void*, unsigned long, unsigned long);
 #include "Game/SAnim.h"
 #include "Game/Sys/debug.h"
 #include "dolphin/os/OSCache.h"
+#include <map>
 #include <math.h>
 #include <set>
 #include <string.h>
@@ -453,14 +454,26 @@ static void PortSignOrient(glModel* pModel)
     static const bool bOff = getenv("STRIKERS_SIGN_FIX") != NULL && getenv("STRIKERS_SIGN_FIX")[0] == '0';
     if (bOff)
         return;
-    struct SignPacket
+
+    // One entry per distinct vertex of the ad boards, keyed by where its UV lives so packets that share a vertex
+    // are tied together.
+    struct SignVertex
     {
-        const glModelStream* uv;
-        const u16* idx;
-        int nv;
-        bool reversed;
+        u8* uv;
+        double x, y, nx, ny, nz, u;
+        int parent;
     };
-    std::vector<SignPacket> found;
+    std::vector<SignVertex> verts;
+    std::map<uintptr_t, int> byKey;
+    auto find = [&](int i) {
+        while (verts[i].parent != i)
+        {
+            verts[i].parent = verts[verts[i].parent].parent;
+            i = verts[i].parent;
+        }
+        return i;
+    };
+
     const int n = (int)pModel->numPackets;
     glModelPacket* p = pModel->packets;
     for (int k = 0; k < n; k++, p = (glModelPacket*)((u8*)p + sizeof(glModelPacket)))
@@ -485,94 +498,109 @@ static void PortSignOrient(glModel* pModel)
             continue;
         const u16* idx = (const u16*)p->indexBuffer;
 
-        double nx = 0, ny = 0, nz = 0, um = 0, px = 0, py = 0;
-        std::vector<double> U(nv), X(nv), Y(nv);
+        std::vector<int> ids(nv);
         for (int i = 0; i < nv; i++)
         {
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            auto it = byKey.find((uintptr_t)pu);
+            if (it != byKey.end())
+            {
+                ids[i] = it->second;
+                continue;
+            }
+            SignVertex v;
+            v.uv = pu;
             const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
             if (pos->stride == 6)
             {
-                X[i] = (double)(s16)port_be16(pv) / 256.0;
-                Y[i] = (double)(s16)port_be16(pv + 2) / 256.0;
+                v.x = (double)(s16)port_be16(pv) / 256.0;
+                v.y = (double)(s16)port_be16(pv + 2) / 256.0;
             }
             else
             {
-                X[i] = port_bef32(pv);
-                Y[i] = port_bef32(pv + 4);
+                v.x = port_bef32(pv);
+                v.y = port_bef32(pv + 4);
             }
             const s8* pn = (const s8*)((const u8*)nrm->address + (size_t)idx[i] * nrm->stride);
-            nx += pn[0];
-            ny += pn[1];
-            nz += pn[2];
-            const u8* pu = (const u8*)uv->address + (size_t)idx[i] * uv->stride;
-            U[i] = (double)(s16)port_be16(pu) / 1024.0;
-            um += U[i];
-            px += X[i];
-            py += Y[i];
+            v.nx = pn[0];
+            v.ny = pn[1];
+            v.nz = pn[2];
+            v.u = (double)(s16)port_be16(pu) / 1024.0;
+            v.parent = (int)verts.size();
+            ids[i] = v.parent;
+            byKey[(uintptr_t)pu] = v.parent;
+            verts.push_back(v);
         }
-        SignPacket sp;
-        sp.uv = uv;
-        sp.idx = idx;
-        sp.nv = nv;
-        sp.reversed = false;
-        const double nl = sqrt(nx * nx + ny * ny + nz * nz);
-        if (nl > 1e-6 && fabs(nz / nl) <= 0.8) // a board facing the pitch, not a floor or ceiling
+        // Tie the three corners of every triangle together. primType 1 is a strip, anything else a plain list.
+        const bool strip = p->primType == 1;
+        for (int i = 0; i + 2 < nv; i += (strip ? 1 : 3))
         {
-            nx /= nl;
-            ny /= nl;
-            um /= nv;
-            px /= nv;
-            py /= nv;
-            double dx = 0, dy = 0;
-            for (int i = 0; i < nv; i++)
-            {
-                dx += (U[i] - um) * (X[i] - px);
-                dy += (U[i] - um) * (Y[i] - py);
-            }
-            // The viewer faces the board, looking along -normal with +Z up, so their right-hand direction is (-ny, nx).
-            sp.reversed = (dx * -ny + dy * nx) < 0.0;
+            const int r0 = find(ids[i]);
+            const int r1 = find(ids[i + 1]);
+            const int r2 = find(ids[i + 2]);
+            verts[r1].parent = r0;
+            verts[find(r2)].parent = r0;
         }
-        found.push_back(sp);
     }
 
-    // Boards that share a vertex with a board that reads the other way are left alone, since one vertex cannot be
-    // mirrored for one and not the other.
-    std::set<uintptr_t> keep;
-    for (size_t i = 0; i < found.size(); i++)
+    // Each connected piece of board is judged on its own: is U running left to right as the viewer sees it?
+    struct Piece
     {
-        if (found[i].reversed)
-            continue;
-        for (int v = 0; v < found[i].nv; v++)
-            keep.insert((uintptr_t)found[i].uv->address + (size_t)found[i].idx[v] * found[i].uv->stride);
+        double nx = 0, ny = 0, nz = 0, um = 0, px = 0, py = 0, dx = 0, dy = 0;
+        int count = 0;
+    };
+    std::map<int, Piece> pieces;
+    for (size_t i = 0; i < verts.size(); i++)
+    {
+        Piece& pc = pieces[find((int)i)];
+        pc.nx += verts[i].nx;
+        pc.ny += verts[i].ny;
+        pc.nz += verts[i].nz;
+        pc.um += verts[i].u;
+        pc.px += verts[i].x;
+        pc.py += verts[i].y;
+        pc.count++;
     }
-    std::set<uintptr_t> done;
-    int flipped = 0;
-    for (size_t i = 0; i < found.size(); i++)
+    for (std::map<int, Piece>::iterator it = pieces.begin(); it != pieces.end(); ++it)
     {
-        if (!found[i].reversed)
+        it->second.um /= it->second.count;
+        it->second.px /= it->second.count;
+        it->second.py /= it->second.count;
+    }
+    for (size_t i = 0; i < verts.size(); i++)
+    {
+        Piece& pc = pieces[find((int)i)];
+        pc.dx += (verts[i].u - pc.um) * (verts[i].x - pc.px);
+        pc.dy += (verts[i].u - pc.um) * (verts[i].y - pc.py);
+    }
+    int flipped = 0;
+    for (std::map<int, Piece>::iterator it = pieces.begin(); it != pieces.end(); ++it)
+    {
+        const Piece& pc = it->second;
+        const double nl = sqrt(pc.nx * pc.nx + pc.ny * pc.ny + pc.nz * pc.nz);
+        if (nl < 1e-6 || fabs(pc.nz / nl) > 0.8) // not a board facing the pitch
             continue;
-        bool shared = false;
-        for (int v = 0; v < found[i].nv && !shared; v++)
-            shared = keep.count((uintptr_t)found[i].uv->address + (size_t)found[i].idx[v] * found[i].uv->stride) != 0;
-        if (shared)
-            continue;
-        for (int v = 0; v < found[i].nv; v++)
+        const double nx = pc.nx / nl;
+        const double ny = pc.ny / nl;
+        // The viewer faces the board, looking along -normal with +Z up, so their right-hand direction is (-ny, nx).
+        if (pc.dx * -ny + pc.dy * nx >= 0.0)
+            continue; // already reads left to right
+        for (size_t i = 0; i < verts.size(); i++)
         {
-            u8* pu = (u8*)found[i].uv->address + (size_t)found[i].idx[v] * found[i].uv->stride;
-            if (!done.insert((uintptr_t)pu).second)
+            if (find((int)i) != it->first)
                 continue;
-            // u -> 1 - u for every vertex of the board, so boards that share a vertex stay in step. The texture
-            // repeats, so the whole-tile offset for boards that started at -1 changes nothing.
-            int ui = 1024 - (int)(s16)port_be16(pu);
+            // u -> 1 - u for every vertex of the piece. The texture repeats, so the whole-tile offset for
+            // boards that started at -1 changes nothing.
+            int ui = 1024 - (int)(s16)port_be16(verts[i].uv);
             if (ui < -32768) ui = -32768;
             if (ui > 32767) ui = 32767;
-            pu[0] = (u8)((ui >> 8) & 0xFF);
-            pu[1] = (u8)(ui & 0xFF);
+            verts[i].uv[0] = (u8)((ui >> 8) & 0xFF);
+            verts[i].uv[1] = (u8)(ui & 0xFF);
         }
         flipped++;
     }
     if (flipped > 0)
-        fprintf(stderr, "SIGNFIX model=%08x packets flipped=%d\n", (unsigned)pModel->id, flipped);
+        fprintf(stderr, "SIGNFIX model=%08x board pieces flipped=%d\n", (unsigned)pModel->id, flipped);
 }
 
 static void PortPitchUnify(glModel* pModel)
