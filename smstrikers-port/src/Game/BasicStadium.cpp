@@ -1,6 +1,7 @@
 #include "Game/BasicStadium.h"
 #include <stdlib.h>
 #include "port/probeobj.h"
+#include "port/texture_packs.h"
 extern "C" void OSReport(const char*, ...);
 #include "Game/AI/Powerups.h"
 #include "Game/Render/NetMesh.h"
@@ -100,6 +101,7 @@ BasicStadium::BasicStadium(const char* szBaseName)
     }
 
     CrowdManager::instance.SetStadium(m_szBaseName);
+    PortTexturesSetStadium(m_szBaseName); // PORT: texture packs scoped to this stadium (mods/textures/@<stadium>/)
 
     g_fSkyboxRotationTime = (strstr(m_szBaseName, "super") != nullptr) ? 800.0f : 1420.0f;
 
@@ -125,6 +127,7 @@ BasicStadium::~BasicStadium()
 {
     g_pEventManager->RemoveEventHandler(m_pEventHandler);
     pBasicStadiumInstance = NULL;
+    PortTexturesSetStadium(NULL); // PORT
 
     delete mpNPCManager;
 

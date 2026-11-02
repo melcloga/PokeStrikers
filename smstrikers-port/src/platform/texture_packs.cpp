@@ -4,6 +4,7 @@
 
 extern "C" void PortTexturesInit(const char*) {}
 extern "C" void PortTexturesReload(void) {}
+extern "C" void PortTexturesSetStadium(const char*) {}
 extern "C" const char* PortTexturesFolder(int, int*) { return 0; }
 extern "C" int PortTextureDumpEnabled(void) { return 0; }
 extern "C" void PortTextureDumpEnable(int) {}
@@ -42,6 +43,8 @@ struct Folder
 };
 
 std::string g_userPath;
+std::string g_stadium;
+std::vector<uint64_t> g_scoped;
 std::vector<Folder> g_folders;
 bool g_onePack;
 
@@ -140,6 +143,50 @@ void LoadFolders()
     }
 }
 
+// Every textures folder, the same ones FindFolders reads, whether or not a pack is selected.
+std::vector<std::string> TextureRoots()
+{
+    std::vector<std::string> roots;
+    for (int root = 0; root < PORT_MODS_ROOT_COUNT; root++)
+    {
+        char dir[1024];
+        if (PortModsFolder(root, g_userPath.c_str(), "textures", dir, sizeof dir))
+            roots.push_back(dir);
+    }
+    const char* named = getenv("STRIKERS_TEXTURES");
+    if (named != NULL && *named != '\0' && !Off(named))
+        roots.push_back(TrimSeparators(named));
+    return roots;
+}
+
+void UnloadStadiumFolders()
+{
+    for (size_t i = 0; i < g_scoped.size(); i++)
+        aurora_replacement_unload_scoped(g_scoped[i]);
+    g_scoped.clear();
+}
+
+void LoadStadiumFolders()
+{
+    if (g_stadium.empty())
+        return;
+    const char* off = getenv("STRIKERS_TEXTURES");
+    if (off != NULL && *off != '\0' && Off(off))
+        return;
+    const std::vector<std::string> roots = TextureRoots();
+    for (size_t i = 0; i < roots.size(); i++)
+    {
+        const std::string dir = TrimSeparators(roots[i]) + "/@" + g_stadium;
+        if (!IsDirectory(dir))
+            continue;
+        // Above every ordinary pack, later roots above earlier ones.
+        const uint64_t handle = aurora_replacement_load_scoped(dir.c_str(), 1000 + (int)i);
+        if (handle != 0)
+            g_scoped.push_back(handle);
+        fprintf(stderr, "[port] textures: stadium folder %s%s\n", dir.c_str(), handle != 0 ? "" : " (empty)");
+    }
+}
+
 void SetDumpDir(const char* v)
 {
     if (v != NULL && *v != '\0' && strcmp(v, "1") != 0)
@@ -198,8 +245,25 @@ extern "C" void PortTexturesInit(const char* userPath)
 extern "C" void PortTexturesReload(void)
 {
     aurora_replacement_clear();
+    g_scoped.clear(); // cleared with everything else
     FindFolders();
     LoadFolders();
+    LoadStadiumFolders();
+}
+
+extern "C" void PortTexturesSetStadium(const char* name)
+{
+    std::string want;
+    if (name != NULL)
+    {
+        for (const char* c = name; *c != '\0'; c++)
+            want += (*c >= 'A' && *c <= 'Z') ? (char)(*c - 'A' + 'a') : *c;
+    }
+    if (want == g_stadium)
+        return;
+    UnloadStadiumFolders();
+    g_stadium = want;
+    LoadStadiumFolders();
 }
 
 extern "C" const char* PortTexturesFolder(int index, int* registrations)

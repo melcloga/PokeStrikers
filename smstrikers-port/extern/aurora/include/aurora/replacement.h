@@ -16,6 +16,10 @@ extern "C" {
 /* Registers every replacement file under `root`, an existing UTF-8 path, one pack if `one_pack`; returns how many. */
 uint32_t aurora_replacement_load(const char* root, int32_t priority, int one_pack);
 void aurora_replacement_clear(void);
+/* smstrikers-port: a folder of replacements that can be taken away again, for texture packs scoped to one stadium.
+   Returns a handle (0 if nothing was registered); the replacements outrank any with a lower `priority`. */
+uint64_t aurora_replacement_load_scoped(const char* root, int32_t priority);
+void aurora_replacement_unload_scoped(uint64_t handle);
 void aurora_replacement_set_cache_budget(uint64_t bytes);
 /* aurora::texture::dump_texture: 1 written, 0 already there, -1 failed. */
 int aurora_replacement_dump(const GXTexObj* obj, const GXTlutObj* tlut, const char* dir);

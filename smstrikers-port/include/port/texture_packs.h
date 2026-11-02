@@ -15,6 +15,11 @@ void PortTexturesInit(const char* userPath);
 // Look for the folders again and rescan them.
 void PortTexturesReload(void);
 
+// The stadium now being played ("the_palace", ...), or NULL outside one. The textures in mods/textures/@<stadium>/
+// load while it is active and beat the same texture anywhere else, so one stadium can have its own art for a texture
+// every stadium shares. Folders starting with @ are not loaded as ordinary packs.
+void PortTexturesSetStadium(const char* name);
+
 // The folder at `index` and how many textures it registered, or NULL past the last.
 const char* PortTexturesFolder(int index, int* registrations);
 

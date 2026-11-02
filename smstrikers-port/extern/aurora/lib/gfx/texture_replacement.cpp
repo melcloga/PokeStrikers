@@ -10,6 +10,7 @@
 #include "png_io.hpp"
 #include "texture_convert.hpp"
 
+#include <map>
 #include <aurora/replacement.h>
 #include <aurora/texture.hpp>
 #include <fmt/format.h>
@@ -1969,9 +1970,14 @@ ReplacementGroup load_replacement_directory(const std::filesystem::path& root, R
       continue;
     }
 
+    auto components = path_components(root, path);
+    // smstrikers-port: a top-level folder starting with '@' belongs to one stadium and is loaded on demand, not here.
+    if (components.size() > 1 && !components.front().empty() && components.front().front() == '@') {
+      continue;
+    }
     candidates.push_back({
         .path = path,
-        .components = path_components(root, path),
+        .components = std::move(components),
     });
   }
 
@@ -2110,7 +2116,40 @@ extern "C" uint32_t aurora_replacement_load(const char* root, int32_t priority, 
   return static_cast<uint32_t>(group.registrations.size());
 }
 
-extern "C" void aurora_replacement_clear() { aurora::texture::clear_replacements(); }
+namespace {
+// smstrikers-port: groups handed out by aurora_replacement_load_scoped.
+std::map<uint64_t, aurora::texture::ReplacementGroup>& scoped_groups() {
+  static std::map<uint64_t, aurora::texture::ReplacementGroup> groups;
+  return groups;
+}
+uint64_t s_nextScopedHandle = 1;
+} // namespace
+
+extern "C" uint64_t aurora_replacement_load_scoped(const char* root, int32_t priority) {
+  auto group = aurora::texture::load_replacement_directory(aurora::io::fs_path_from_string(root),
+                                                           {.priority = priority, .onePack = false});
+  if (group.registrations.empty()) {
+    return 0;
+  }
+  const uint64_t handle = s_nextScopedHandle++;
+  scoped_groups().emplace(handle, std::move(group));
+  return handle;
+}
+
+extern "C" void aurora_replacement_unload_scoped(uint64_t handle) {
+  auto& groups = scoped_groups();
+  const auto it = groups.find(handle);
+  if (it == groups.end()) {
+    return;
+  }
+  aurora::texture::unregister_replacements(it->second);
+  groups.erase(it);
+}
+
+extern "C" void aurora_replacement_clear() {
+  scoped_groups().clear();
+  aurora::texture::clear_replacements();
+}
 
 extern "C" void aurora_replacement_set_cache_budget(uint64_t bytes) {
   aurora::texture::set_replacement_cache_budget(bytes);
