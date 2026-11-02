@@ -56,10 +56,14 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
 // one replacement PNG of any size can paint the whole pitch with no tiling or mirroring.
 static bool PortPitchUnifyMatch(unsigned long id)
 {
-    static const char* sList = getenv("STRIKERS_PITCH_UNIFY");
-    if (sList == NULL || sList[0] == '\0')
+    // Built in: the stadium pitches that are set up for one-file painting. STRIKERS_PITCH_UNIFY adds more
+    // (comma separated); STRIKERS_PITCH_UNIFY=0 turns the built-in ones off.
+    static const char* sEnv = getenv("STRIKERS_PITCH_UNIFY");
+    if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return false;
-    std::string list(sList);
+    static const std::string sAll = std::string("the_palace/pitch,mario_stadium/newfield01") +
+                                    ((sEnv != NULL && sEnv[0] != '\0') ? std::string(",") + sEnv : std::string());
+    std::string list(sAll);
     size_t start = 0;
     while (start <= list.size())
     {
