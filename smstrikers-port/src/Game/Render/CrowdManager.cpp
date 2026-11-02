@@ -1,5 +1,6 @@
 #include "Game/Render/CrowdManager.h"
 #include "port/rollback.h"
+#include "port/texture_packs.h"
 
 #include "Game/NisPlayer.h"
 #include "NL/gl/glConstant.h"
@@ -167,6 +168,20 @@ static void CrowdBundleLoad_cb(void*, unsigned long, void*)
 {
     if (!glTextureLoad(glGetTexture("idle/idle")))
         return;
+
+    // PORT: the bundle file was read straight into the atlas's memory, so nothing told the texture packs about the
+    // finished pixels. Rebuild its texture object from them and report it, so texture dumps and replacements see it.
+    {
+        PlatTexture* crowdTex = glx_GetTex(glGetTexture("idle/idle"), false, false);
+        if (crowdTex != NULL)
+        {
+            PortTextureDumpFrom("art/crowd");
+            crowdTex->Prepare();
+            PortTextureCreated(&crowdTex->m_TexObj, NULL);
+            PortTextureDumpFrom(NULL);
+            GXInvalidateTexAll();
+        }
+    }
 
     f32 animScale;
     switch (CrowdManager::instance.m_State)
