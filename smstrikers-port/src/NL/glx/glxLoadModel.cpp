@@ -701,15 +701,16 @@ struct PortFieldExtra
     const char* name;
     unsigned packetMask;
     float sx, sy, tx, ty;
+    float zset; // model-space height to flatten the packet to (1000 = leave as is)
 };
 static const PortFieldExtra kPortFieldExtras[] = {
-    { "mario_stadium/netshadow_01", 0x7u, -1.0f, -1.0f, -20.2149f, 3.7794f },
-    { "mario_stadium/goalpost_floor01", 0x1u, 1.0f, 1.0f, -22.8025f, 0.0f },
-    { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f },
-    { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f },
-    { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f },
-    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f },
-    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f },
+    { "mario_stadium/netshadow_01", 0x7u, -1.0f, -1.0f, -20.2149f, 3.7794f, 1000.0f },
+    { "mario_stadium/goalpost_floor01", 0x1u, 1.0f, 1.0f, -22.8025f, 0.0f, 1000.0f },
+    { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f, 1000.0f },
+    { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f, 1000.0f },
+    { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f, 1000.0f },
+    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f, 0.0f },
+    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f, 0.0f },
 };
 
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
@@ -768,7 +769,8 @@ static void PortFieldExtras(glModel* pModel)
         if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4)
             continue;
         const u16* idx = (const u16*)p->indexBuffer;
-        if (strncmp(e->name, "mario_stadium/netshadow", 23) == 0 && pos->stride >= 12)
+        const bool bGrow = strncmp(e->name, "mario_stadium/netshadow", 23) == 0 || e->zset < 999.0f;
+        if (bGrow)
         {
             // Grow the fill piece a hair about its own centre so it overlaps the field instead of leaving a hairline
             // crack (the dark line) along the seam. Same image on both sides, so the overlap is invisible.
@@ -776,7 +778,9 @@ static void PortFieldExtras(glModel* pModel)
             for (int i = 0; i < (int)p->numVertices; i++)
             {
                 const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
-                const float x = port_bef32(pv), y = port_bef32(pv + 4);
+                float x, y;
+                if (pos->stride >= 12) { x = port_bef32(pv); y = port_bef32(pv + 4); }
+                else { x = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f; y = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f; }
                 if (x < bx0) bx0 = x;
                 if (x > bx1) bx1 = x;
                 if (y < by0) by0 = y;
@@ -791,9 +795,28 @@ static void PortFieldExtras(glModel* pModel)
                 if (!seen.insert((unsigned)idx[i]).second)
                     continue;
                 u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
-                const float x = port_bef32(pv), y = port_bef32(pv + 4);
-                PortStoreBEf32(pv, cx + (x - cx) * sxs);
-                PortStoreBEf32(pv + 4, cy + (y - cy) * sys);
+                if (pos->stride >= 12)
+                {
+                    const float x = port_bef32(pv), y = port_bef32(pv + 4);
+                    PortStoreBEf32(pv, cx + (x - cx) * sxs);
+                    PortStoreBEf32(pv + 4, cy + (y - cy) * sys);
+                    if (e->zset < 999.0f)
+                        PortStoreBEf32(pv + 8, e->zset);
+                }
+                else
+                {
+                    const float x = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
+                    const float y = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f;
+                    int nx = (int)floorf((cx + (x - cx) * sxs) * 256.0f + 0.5f);
+                    int ny = (int)floorf((cy + (y - cy) * sys) * 256.0f + 0.5f);
+                    pv[0] = (u8)((nx >> 8) & 0xFF); pv[1] = (u8)(nx & 0xFF);
+                    pv[2] = (u8)((ny >> 8) & 0xFF); pv[3] = (u8)(ny & 0xFF);
+                    if (e->zset < 999.0f)
+                    {
+                        int nz = (int)floorf(e->zset * 256.0f + 0.5f);
+                        pv[4] = (u8)((nz >> 8) & 0xFF); pv[5] = (u8)(nz & 0xFF);
+                    }
+                }
             }
         }
         for (int st = 0; st < (int)p->numStreams; st++)
