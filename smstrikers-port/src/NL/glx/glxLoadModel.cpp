@@ -733,6 +733,39 @@ static void PortRingPlates(glModel* pModel)
     fprintf(stderr, "RINGPLATE model=%08x\n", (unsigned)pModel->id);
 }
 
+
+// PORT (mod): the stock field pieces are tinted warm (vertex colour 218,199,189), which would turn a white painted
+// field peach. For Pipeline Central's field the tint is set to neutral so the picture shows as painted.
+// STRIKERS_FIELD_TINT=1 keeps the stock tint.
+static void PortFieldNeutral(glModel* pModel)
+{
+    static const char* sKeep = getenv("STRIKERS_FIELD_TINT");
+    if (sKeep != NULL && sKeep[0] == '1')
+        return;
+    if (nlStringLowerHash("mario_stadium/newfield01") != pModel->id)
+        return;
+    int n = 0;
+    for (int k = 0; k < (int)pModel->numPackets; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        if (p->indexBuffer == 0)
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id != 2 || p->streams[st].stride < 4)
+                continue;
+            for (int i = 0; i < (int)p->numVertices; i++)
+            {
+                u8* pc = (u8*)p->streams[st].address + (size_t)idx[i] * p->streams[st].stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+            n++;
+        }
+    }
+    fprintf(stderr, "FIELDNEUTRAL model=%08x packets=%d\n", (unsigned)pModel->id, n);
+}
+
 static void PortFieldExtras(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FIELD_EXTRAS");
@@ -830,7 +863,7 @@ static void PortFieldExtras(glModel* pModel)
                 for (int i = 0; i < (int)p->numVertices; i++)
                 {
                     u8* pc = (u8*)p->streams[st].address + (size_t)idx[i] * p->streams[st].stride;
-                    pc[0] = 218; pc[1] = 199; pc[2] = 189; pc[3] = 255;
+                    pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
                 }
             }
         }
@@ -1382,6 +1415,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortPitchUnify(pModel);
                     PortRingPlates(pModel);
                     PortFieldExtras(pModel);
+                    PortFieldNeutral(pModel);
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
                     PortSignOrient(pModel);
