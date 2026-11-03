@@ -708,6 +708,8 @@ static const PortFieldExtra kPortFieldExtras[] = {
     { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f },
     { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f },
     { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f },
+    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f },
+    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f },
 };
 
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
@@ -766,6 +768,46 @@ static void PortFieldExtras(glModel* pModel)
         if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4)
             continue;
         const u16* idx = (const u16*)p->indexBuffer;
+        if (strncmp(e->name, "mario_stadium/netshadow", 23) == 0 && pos->stride >= 12)
+        {
+            // Grow the fill piece a hair about its own centre so it overlaps the field instead of leaving a hairline
+            // crack (the dark line) along the seam. Same image on both sides, so the overlap is invisible.
+            float bx0 = 1e30f, bx1 = -1e30f, by0 = 1e30f, by1 = -1e30f;
+            for (int i = 0; i < (int)p->numVertices; i++)
+            {
+                const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+                const float x = port_bef32(pv), y = port_bef32(pv + 4);
+                if (x < bx0) bx0 = x;
+                if (x > bx1) bx1 = x;
+                if (y < by0) by0 = y;
+                if (y > by1) by1 = y;
+            }
+            const float cx = 0.5f * (bx0 + bx1), cy = 0.5f * (by0 + by1);
+            const float sxs = (bx1 - bx0) > 0.01f ? 1.0f + 0.08f / (bx1 - bx0) : 1.0f;
+            const float sys = (by1 - by0) > 0.01f ? 1.0f + 0.08f / (by1 - by0) : 1.0f;
+            std::set<unsigned> seen;
+            for (int i = 0; i < (int)p->numVertices; i++)
+            {
+                if (!seen.insert((unsigned)idx[i]).second)
+                    continue;
+                u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
+                const float x = port_bef32(pv), y = port_bef32(pv + 4);
+                PortStoreBEf32(pv, cx + (x - cx) * sxs);
+                PortStoreBEf32(pv + 4, cy + (y - cy) * sys);
+            }
+        }
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            // Same flat vertex colour as the field pieces, so every piece reads as the same picture.
+            if (p->streams[st].id == 2 && p->streams[st].stride >= 4)
+            {
+                for (int i = 0; i < (int)p->numVertices; i++)
+                {
+                    u8* pc = (u8*)p->streams[st].address + (size_t)idx[i] * p->streams[st].stride;
+                    pc[0] = 218; pc[1] = 199; pc[2] = 189; pc[3] = 255;
+                }
+            }
+        }
         for (int i = 0; i < (int)p->numVertices; i++)
         {
             const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
@@ -1290,8 +1332,8 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                 while (pModel < pModelEnd)
                 {
                     PortPitchUnify(pModel);
-                    PortFieldExtras(pModel);
                     PortRingPlates(pModel);
+                    PortFieldExtras(pModel);
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
                     PortSignOrient(pModel);
