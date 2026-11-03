@@ -300,7 +300,7 @@ static void PortHidePackets(glModel* pModel)
     static const char* sEnv = getenv("STRIKERS_HIDE_PACKETS");
     if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return;
-    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3,mario_stadium/pitchsurrounding03:4,mario_stadium/pitchsurrounding05:4") +
+    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3") +
                                     ((sEnv != NULL && sEnv[0] != '\0') ? std::string(",") + sEnv : std::string());
     const std::string list(sAll);
     size_t start = 0;
@@ -710,6 +710,26 @@ static const PortFieldExtra kPortFieldExtras[] = {
     { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f },
 };
 
+// PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
+// bevel layer. They are given the same state as the ring floor beside them (packet 3) so they read as plain ring floor.
+static void PortRingPlates(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_FIELD_EXTRAS");
+    if (sOff != NULL && strcmp(sOff, "0") == 0)
+        return;
+    if (nlStringLowerHash("mario_stadium/pitchsurrounding03") != pModel->id &&
+        nlStringLowerHash("mario_stadium/pitchsurrounding05") != pModel->id)
+        return;
+    if (pModel->numPackets < 5)
+        return;
+    glModelPacket* ring = (glModelPacket*)((u8*)pModel->packets + (size_t)3 * sizeof(glModelPacket));
+    glModelPacket* plate = (glModelPacket*)((u8*)pModel->packets + (size_t)4 * sizeof(glModelPacket));
+    uintptr_t mtx = plate->state.matrix;
+    plate->state = ring->state;
+    plate->state.matrix = mtx;
+    fprintf(stderr, "RINGPLATE model=%08x\n", (unsigned)pModel->id);
+}
+
 static void PortFieldExtras(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FIELD_EXTRAS");
@@ -777,6 +797,13 @@ static void PortFieldExtras(glModel* pModel)
             pu[3] = (u8)(vi & 0xFF);
         }
         p->state.texture[0] = (uintptr_t)0xf406f013u;
+        if (strncmp(e->name, "mario_stadium/netshadow", 23) == 0)
+        {
+            // Same texture stages as the field pieces themselves: drops the net-shadow layer (and its edge line).
+            p->state.texturestate = 0x12b00000ULL;
+            p->state.texconfig = 0x03;
+            p->state.texture[2] = (uintptr_t)0xffffffffu;
+        }
         done++;
     }
     fprintf(stderr, "FIELDEXTRA model=%08x packets=%d\n", (unsigned)pModel->id, done);
@@ -1264,6 +1291,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                 {
                     PortPitchUnify(pModel);
                     PortFieldExtras(pModel);
+                    PortRingPlates(pModel);
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
                     PortSignOrient(pModel);
