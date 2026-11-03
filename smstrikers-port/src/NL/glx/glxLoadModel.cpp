@@ -300,7 +300,7 @@ static void PortHidePackets(glModel* pModel)
     static const char* sEnv = getenv("STRIKERS_HIDE_PACKETS");
     if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return;
-    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3,mario_stadium/netshadow_02:0") +
+    static const std::string sAll = std::string("mario_stadium/lift03:0+1+2+3,mario_stadium/lift04:0+1+2+3,mario_stadium/pitchsurrounding03:4,mario_stadium/pitchsurrounding05:4") +
                                     ((sEnv != NULL && sEnv[0] != '\0') ? std::string(",") + sEnv : std::string());
     const std::string list(sAll);
     size_t start = 0;
@@ -707,8 +707,7 @@ static const PortFieldExtra kPortFieldExtras[] = {
     { "mario_stadium/goalpost_floor01", 0x1u, 1.0f, 1.0f, -22.8025f, 0.0f },
     { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f },
     { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f },
-    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f },
-    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f },
+    { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f },
 };
 
 static void PortFieldExtras(glModel* pModel)
