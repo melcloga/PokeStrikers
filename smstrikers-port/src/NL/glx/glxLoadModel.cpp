@@ -759,12 +759,15 @@ static void PortFieldExtras(glModel* pModel)
         glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
         const glModelStream* pos = NULL;
         const glModelStream* uv = NULL;
+        int detailIdx = -1; // plate pieces: their spare UV stream (id 7) becomes the field's detail-layer UV (id 4)
         for (int st = 0; st < (int)p->numStreams; st++)
         {
             if (p->streams[st].id == 0)
                 pos = &p->streams[st];
             else if (p->streams[st].id == 3)
                 uv = &p->streams[st];
+            else if (p->streams[st].id == 7 && p->streams[st].stride >= 4 && e->zset < 999.0f)
+                detailIdx = st;
         }
         if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4)
             continue;
@@ -860,6 +863,28 @@ static void PortFieldExtras(glModel* pModel)
             pu[1] = (u8)(ui & 0xFF);
             pu[2] = (u8)((vi >> 8) & 0xFF);
             pu[3] = (u8)(vi & 0xFF);
+            if (detailIdx >= 0)
+            {
+                // The field pieces' detail-layer UV is a plain linear function of position (fitted from the data).
+                const float xm = wx / 1.5f, ym = wy + 0.1717f;
+                int du = (int)floorf((0.4380f * xm + 7.2645f) * 1024.0f + 0.5f);
+                int dv = (int)floorf((-0.1150f * ym - 2.7295f) * 1024.0f + 0.5f);
+                u8* pd = (u8*)p->streams[detailIdx].address + (size_t)idx[i] * p->streams[detailIdx].stride;
+                pd[0] = (u8)((du >> 8) & 0xFF);
+                pd[1] = (u8)(du & 0xFF);
+                pd[2] = (u8)((dv >> 8) & 0xFF);
+                pd[3] = (u8)(dv & 0xFF);
+            }
+        }
+        if (detailIdx >= 0)
+        {
+            // Same two texture stages as the field pieces (field image + shared detail layer).
+            p->streams[detailIdx].id = 4;
+            p->state.texturestate = 0x12b00000ULL;
+            p->state.texconfig = 0x03;
+            p->state.texture[1] = (uintptr_t)0x5c5698b2u;
+            for (int t = 2; t < 6; t++)
+                p->state.texture[t] = (uintptr_t)0xffffffffu;
         }
         p->state.texture[0] = (uintptr_t)0xf406f013u;
         if (strncmp(e->name, "mario_stadium/netshadow", 23) == 0)
