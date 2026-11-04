@@ -471,14 +471,18 @@ static void PortBackWallMirror(glModel* pModel)
             const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
             const double x = (pos->stride == 6) ? (double)(s16)port_be16(pv) / 256.0 : (double)port_bef32(pv);
             const double z = (pos->stride == 6) ? (double)(s16)port_be16(pv + 4) / 256.0 : (double)port_bef32(pv + 8);
-            if (x < 19.9)
+            if (x <= 0.0)
                 continue;
             u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
-            // Only the flat side panel: its UVs follow u = 2.2705 - 0.0836 x and v = 0.4622 - 0.0663 z. Vertices
-            // of the window frame that also sit at x > 19.9 do not, and must keep their UVs.
+            // The flat side panel and the rounded corner next to it share one planar mapping, u = 2.2705 - 0.0836 x
+            // and v = 0.4622 - 0.0663 z. A few edge vertices (the outer lip and the bottom of the corner) were
+            // authored slightly off that plane, so anything at x >= 19.9 whose U lies inside the panel's own range
+            // (0..0.6) is mirrored with it. The window frame's own islands are left alone. Checked offline: every
+            // triangle is either entirely inside this set or entirely outside it.
             const double uu = (double)(s16)port_be16(pu) / 1024.0;
             const double vv = (double)(s16)port_be16(pu + 2) / 1024.0;
-            if (fabs(uu - (2.2705 - 0.0836 * x)) > 0.004 || fabs(vv - (0.4622 - 0.0663 * z)) > 0.004)
+            const bool planar = fabs(uu - (2.2705 - 0.0836 * x)) <= 0.004 && fabs(vv - (0.4622 - 0.0663 * z)) <= 0.004;
+            if (!planar && !(x >= 19.9 && uu <= 0.6))
                 continue;
             if (!done.insert((uintptr_t)pu).second)
                 continue;
