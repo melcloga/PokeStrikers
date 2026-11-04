@@ -471,7 +471,7 @@ static void PortBackWallMirror(glModel* pModel)
             const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
             const double x = (pos->stride == 6) ? (double)(s16)port_be16(pv) / 256.0 : (double)port_bef32(pv);
             const s8* pn = (const s8*)((const u8*)nrm->address + (size_t)idx[i] * nrm->stride);
-            if (x < 19.9 || (pn[1] > -100 && pn[1] < 100))
+            if (x < 19.9 || pn[1] > -50)
                 continue;
             u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
             if (!done.insert((uintptr_t)pu).second)
