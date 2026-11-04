@@ -470,10 +470,16 @@ static void PortBackWallMirror(glModel* pModel)
         {
             const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
             const double x = (pos->stride == 6) ? (double)(s16)port_be16(pv) / 256.0 : (double)port_bef32(pv);
-            const s8* pn = (const s8*)((const u8*)nrm->address + (size_t)idx[i] * nrm->stride);
-            if (x < 19.9 || pn[1] > -50)
+            const double z = (pos->stride == 6) ? (double)(s16)port_be16(pv + 4) / 256.0 : (double)port_bef32(pv + 8);
+            if (x < 19.9)
                 continue;
             u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            // Only the flat side panel: its UVs follow u = 2.2705 - 0.0836 x and v = 0.4622 - 0.0663 z. Vertices
+            // of the window frame that also sit at x > 19.9 do not, and must keep their UVs.
+            const double uu = (double)(s16)port_be16(pu) / 1024.0;
+            const double vv = (double)(s16)port_be16(pu + 2) / 1024.0;
+            if (fabs(uu - (2.2705 - 0.0836 * x)) > 0.004 || fabs(vv - (0.4622 - 0.0663 * z)) > 0.004)
+                continue;
             if (!done.insert((uintptr_t)pu).second)
                 continue;
             const int u = (s16)port_be16(pu);
