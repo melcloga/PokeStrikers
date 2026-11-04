@@ -432,6 +432,58 @@ static void PortGoalFix(glModel* pModel)
 }
 
 
+// PORT (mod): Mario Stadium back wall (exteriorbuildtopwall02). Its two side panels are mirror copies that keep the
+// same UVs, so a logo painted on the texture reads correctly on one panel and mirrored on the other. Mirror U
+// inside the panel's own range (0..kPanelU, 0..0.582 of the texture) for the vertices of the flat, front-facing
+// panel on the +X side so both read left to right. STRIKERS_BACKWALL_FIX=0 turns it off.
+static void PortBackWallMirror(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_BACKWALL_FIX");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    if (nlStringLowerHash("mario_stadium/exteriorbuildtopwall02") != pModel->id)
+        return;
+    const int kPanelU = 596; // 0.582 * 1024, the inner edge of the panel in U
+    std::set<uintptr_t> done;
+    int flipped = 0;
+    glModelPacket* p = pModel->packets;
+    for (int k = 0; k < (int)pModel->numPackets; k++, p = (glModelPacket*)((u8*)p + sizeof(glModelPacket)))
+    {
+        if (p->indexBuffer == 0)
+            continue;
+        const glModelStream* pos = NULL;
+        const glModelStream* nrm = NULL;
+        const glModelStream* uv = NULL;
+        for (int s = 0; s < (int)p->numStreams; s++)
+        {
+            if (p->streams[s].id == 0)
+                pos = &p->streams[s];
+            else if (p->streams[s].id == 1)
+                nrm = &p->streams[s];
+            else if (p->streams[s].id == 3)
+                uv = &p->streams[s];
+        }
+        if (pos == NULL || nrm == NULL || uv == NULL || nrm->stride < 3 || uv->stride < 4 || (pos->stride != 6 && pos->stride < 12))
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            const double x = (pos->stride == 6) ? (double)(s16)port_be16(pv) / 256.0 : (double)port_bef32(pv);
+            const s8* pn = (const s8*)((const u8*)nrm->address + (size_t)idx[i] * nrm->stride);
+            if (x < 19.9 || (pn[1] > -100 && pn[1] < 100))
+                continue;
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            if (!done.insert((uintptr_t)pu).second)
+                continue;
+            const int u = (s16)port_be16(pu);
+            PortStoreBE16(pu, kPanelU - u);
+            flipped++;
+        }
+    }
+    fprintf(stderr, "BACKWALL mirrored %d UVs\n", flipped);
+}
+
 // PORT (mod): sign boards that read backwards. The stadium builds its four sign walls as mirror copies of each
 // other but keeps the UVs, so an ad reads correctly on one wall and mirrored on the other (and mirrored on the
 // opposite side of the field). For every packet that uses one of the listed ad textures this works out, from the
@@ -1444,6 +1496,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
                     PortSignOrient(pModel);
+                    PortBackWallMirror(pModel);
                     glModelPacket* pPacket = pModel->packets;
                     while (pPacket < pModel->packets + pModel->numPackets)
                     {
