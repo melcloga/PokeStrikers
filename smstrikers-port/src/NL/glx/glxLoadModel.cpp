@@ -775,6 +775,149 @@ static const PortFieldExtra kPortFieldExtras[] = {
     { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f, 0.0f },
 };
 
+// PORT (mod): Pipeline Central's pitch has rectangular cut-outs along both sideline rings where the recessed vent
+// grates sit (and two small drain holes). Each cut-out is covered with a flat rectangle of the field's own picture, a
+// hair above the ground, so the ring reads as one surface and the painted skyline runs straight across the vents.
+// The rectangle is written into the vent model's own grate packet (packet 2), reusing its vertices. The rectangles
+// are in world units (x0, x1, y0, y1). STRIKERS_VENT_COVER=0 turns it off.
+struct PortVentRect
+{
+    float x0, x1, y0, y1;
+};
+struct PortVentModel
+{
+    const char* name;
+    float sx, sy, tx, ty, tz;
+    int numRects;
+    PortVentRect rects[4];
+};
+static const PortVentModel kPortVentModels[] = {
+    { "mario_stadium/pitchsurrounding02", 1.0f, 1.0f, -11.4331f, 9.9027f, -0.3158f, 2,
+      { { -12.29f, -11.19f, 12.56f, 14.24f }, { -6.77f, -2.91f, 12.56f, 14.24f } } },
+    { "mario_stadium/pitchsurrounding04", -1.0f, -1.0f, -11.4331f, -9.8847f, -0.3158f, 1,
+      { { -10.92f, -5.66f, -13.81f, -12.14f } } },
+    { "mario_stadium/pitchsurrounding05", -1.0f, -1.0f, 1.0266f, 13.3141f, -0.0019f, 4,
+      { { 2.91f, 5.39f, 12.56f, 14.28f }, { 7.04f, 10.92f, 12.50f, 14.28f }, { -1.25f, -0.90f, 12.60f, 13.10f }, { 0.88f, 1.25f, 12.60f, 13.10f } } },
+    { "mario_stadium/pitchsurrounding03", -1.0f, -1.0f, 1.0266f, -13.3978f, -0.0019f, 4,
+      { { 2.91f, 5.39f, -13.81f, -12.14f }, { 7.04f, 10.92f, -13.81f, -12.14f }, { -1.28f, -0.90f, -12.67f, -12.18f }, { 0.88f, 1.25f, -12.67f, -12.18f } } },
+};
+
+static void PortVentCover(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_VENT_COVER");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    const PortVentModel* e = NULL;
+    for (size_t i = 0; i < sizeof(kPortVentModels) / sizeof(kPortVentModels[0]); i++)
+    {
+        if (nlStringLowerHash(kPortVentModels[i].name) == pModel->id)
+        {
+            e = &kPortVentModels[i];
+            break;
+        }
+    }
+    if (e == NULL || pModel->numPackets < 3)
+        return;
+    glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)2 * sizeof(glModelPacket));
+    if (p->indexBuffer == 0)
+        return;
+    const glModelStream* pos = NULL;
+    const glModelStream* nrm = NULL;
+    const glModelStream* col = NULL;
+    const glModelStream* uv = NULL;
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id == 0)
+            pos = &p->streams[st];
+        else if (p->streams[st].id == 1)
+            nrm = &p->streams[st];
+        else if (p->streams[st].id == 2)
+            col = &p->streams[st];
+        else if (p->streams[st].id == 3)
+            uv = &p->streams[st];
+    }
+    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        return;
+    u16* idx = (u16*)p->indexBuffer;
+    const int nIdx = (int)p->numVertices;
+    const bool strip = p->primType == 1;
+
+    // Distinct vertex slots the packet already owns, in order of first use.
+    std::vector<u16> slots;
+    for (int i = 0; i < nIdx; i++)
+    {
+        bool seen = false;
+        for (size_t j = 0; j < slots.size(); j++)
+            if (slots[j] == idx[i]) { seen = true; break; }
+        if (!seen)
+            slots.push_back(idx[i]);
+    }
+    const int need = e->numRects * 4;
+    const int entries = strip ? (e->numRects * 4 + (e->numRects - 1) * 2) : e->numRects * 6;
+    if ((int)slots.size() < need || nIdx < entries)
+    {
+        fprintf(stderr, "VENTCOVER model=%08x too small (slots %d need %d, entries %d need %d)\n", (unsigned)pModel->id,
+                (int)slots.size(), need, nIdx, entries);
+        return;
+    }
+
+    const float xmin = -16.590908f, xmax = 16.590902f, ymin = -14.074756f, ymax = 14.519859f;
+    const float zloc = 0.006f - e->tz;
+    std::vector<u16> out;
+    for (int r = 0; r < e->numRects; r++)
+    {
+        const PortVentRect& rc = e->rects[r];
+        // corners in order BL, BR, TL, TR (world)
+        const float wxs[4] = { rc.x0, rc.x1, rc.x0, rc.x1 };
+        const float wys[4] = { rc.y0, rc.y0, rc.y1, rc.y1 };
+        u16 v[4];
+        for (int c = 0; c < 4; c++)
+        {
+            v[c] = slots[(size_t)r * 4 + c];
+            const float lx = e->sx * (wxs[c] - e->tx);
+            const float ly = e->sy * (wys[c] - e->ty);
+            u8* pv = (u8*)pos->address + (size_t)v[c] * pos->stride;
+            PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));
+            PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
+            PortStoreBE16(pv + 4, (int)floorf(zloc * 256.0f + 0.5f));
+            const float u = (wxs[c] / 1.5f - xmin) / (xmax - xmin) * 1024.0f;
+            const float vv = (ymax - (wys[c] + 0.1717f)) / (ymax - ymin) * 1024.0f;
+            u8* pu = (u8*)uv->address + (size_t)v[c] * uv->stride;
+            PortStoreBE16(pu, (int)floorf(u + 0.5f));
+            PortStoreBE16(pu + 2, (int)floorf(vv + 0.5f));
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)v[c] * col->stride;
+                pc[0] = pc[1] = pc[2] = pc[3] = 255;
+            }
+            if (nrm != NULL && nrm->stride >= 3)
+            {
+                u8* pn = (u8*)nrm->address + (size_t)v[c] * nrm->stride;
+                pn[0] = 0; pn[1] = 0; pn[2] = 64;
+            }
+        }
+        if (strip)
+        {
+            if (r > 0)
+            {
+                out.push_back(out.back());
+                out.push_back(v[0]);
+            }
+            out.push_back(v[0]); out.push_back(v[1]); out.push_back(v[2]); out.push_back(v[3]);
+        }
+        else
+        {
+            out.push_back(v[0]); out.push_back(v[1]); out.push_back(v[3]);
+            out.push_back(v[0]); out.push_back(v[3]); out.push_back(v[2]);
+        }
+    }
+    // Anything left over collapses onto the first vertex.
+    for (int i = 0; i < nIdx; i++)
+        idx[i] = (i < (int)out.size()) ? out[(size_t)i] : out[0];
+    p->state.texture[0] = (uintptr_t)0xf406f013u;
+    fprintf(stderr, "VENTCOVER model=%08x rects=%d\n", (unsigned)pModel->id, e->numRects);
+}
+
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
 // bevel layer. They are given the same state as the ring floor beside them (packet 3) so they read as plain ring floor.
 static void PortRingPlates(glModel* pModel)
@@ -1501,6 +1644,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortPitchUnify(pModel);
                     PortRingPlates(pModel);
                     PortFieldExtras(pModel);
+                    PortVentCover(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
                     PortHidePackets(pModel);
