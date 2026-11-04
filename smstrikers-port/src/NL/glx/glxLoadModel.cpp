@@ -766,6 +766,30 @@ static void PortFieldNeutral(glModel* pModel)
     fprintf(stderr, "FIELDNEUTRAL model=%08x packets=%d\n", (unsigned)pModel->id, n);
 }
 
+// PORT (mod): Pipeline Central's two goals share one net texture and one frame texture, so a texture pack could only
+// recolour both alike. The right goal's net (netmesh) and frame (marionet05) are pointed at two otherwise unused textures
+// that ship in the same stadium file, so each goal can be painted on its own. STRIKERS_GOAL_SPLIT=0 turns it off.
+static void PortGoalSplit(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_GOAL_SPLIT");
+    if (sOff != NULL && strcmp(sOff, "0") == 0)
+        return;
+    u32 spare = 0;
+    if (nlStringLowerHash("mario_stadium/netmesh") == pModel->id)
+        spare = 0x88b56905u;
+    else if (nlStringLowerHash("mario_stadium/marionet05") == pModel->id)
+        spare = 0x9f6289d7u;
+    else
+        return;
+    for (int k = 0; k < (int)pModel->numPackets; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        fprintf(stderr, "GOALSPLIT model=%08x packet=%d tex %08x -> %08x\n", (unsigned)pModel->id, k, (unsigned)p->state.texture[0],
+                (unsigned)spare);
+        p->state.texture[0] = spare;
+    }
+}
+
 static void PortFieldExtras(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FIELD_EXTRAS");
@@ -1416,6 +1440,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortRingPlates(pModel);
                     PortFieldExtras(pModel);
                     PortFieldNeutral(pModel);
+                    PortGoalSplit(pModel);
                     PortHidePackets(pModel);
                     PortGoalFix(pModel);
                     PortSignOrient(pModel);
