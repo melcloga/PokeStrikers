@@ -1106,6 +1106,58 @@ static void PortRingGrid(glModel* pModel)
     fprintf(stderr, "RINGGRID model=%08x verts=%d\n", (unsigned)pModel->id, n);
 }
 
+// PORT (mod): the outer row of the Wario Stadium sideline ring floor (packet 1 of pitchsurroundings12..15, texture 627f2550).
+// Same idea as PortRingGrid, in both directions: u from world x (one repeat = two pitch tiles) and v from the distance
+// outward from the pitch (one repeat = one pitch tile row, seam on the pitch line at |y| = 14.09). STRIKERS_RING_GRID=0
+// turns it off.
+static void PortRingOuter(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_RING_GRID");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    float tx = 0.0f, ty = 0.0f;
+    if (nlStringLowerHash("wario_stadium/pitchsurroundings13") == pModel->id) { tx = -16.6291f; ty = -19.8429f; }
+    else if (nlStringLowerHash("wario_stadium/pitchsurroundings14") == pModel->id) { tx = -16.6291f; ty = 19.89f; }
+    else if (nlStringLowerHash("wario_stadium/pitchsurroundings12") == pModel->id) { tx = 16.6248f; ty = -19.8429f; }
+    else if (nlStringLowerHash("wario_stadium/pitchsurroundings15") == pModel->id) { tx = 16.6248f; ty = 19.6248f; }
+    else
+        return;
+    if (pModel->numPackets < 2)
+        return;
+    glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)1 * sizeof(glModelPacket));
+    if (p->indexBuffer == 0 || p->state.texture[0] != 0x627f2550u)
+        return;
+    const glModelStream* pos = NULL;
+    const glModelStream* uv = NULL;
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id == 0)
+            pos = &p->streams[st];
+        else if (p->streams[st].id == 3)
+            uv = &p->streams[st];
+    }
+    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        return;
+    const u16* idx = (const u16*)p->indexBuffer;
+    const float gridX0 = -20.6043f, period = 4.12f, rowY0 = 14.09f, rowH = 2.0133f;
+    int n = 0;
+    for (int i = 0; i < (int)p->numVertices; i++)
+    {
+        const u16 vi = idx[i];
+        const u8* pv = (const u8*)pos->address + (size_t)vi * pos->stride;
+        const float lx = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
+        const float ly = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f;
+        const float d = (ly + ty) * (ty < 0.0f ? -1.0f : 1.0f);
+        const float u = (lx + tx - gridX0) / period + 10.0f;
+        const float v = (d - rowY0) / rowH + 10.0f;
+        u8* pu = (u8*)uv->address + (size_t)vi * uv->stride;
+        PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
+        PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
+        n++;
+    }
+    fprintf(stderr, "RINGOUTER model=%08x verts=%d\n", (unsigned)pModel->id, n);
+}
+
 // PORT (mod): Wario Stadium (Kanto Power Plant) goal-end corner pieces (packet 3 of pitchsurroundings12..15) and the four
 // tunnel floors (packet 0 of tunnel_floor_01..04) share texture 627f2552 but had unrelated UV layouts, so tiles came out
 // in different sizes. Both are remapped planar from world position: u mirrors about the pitch centre line (one texture
@@ -1912,6 +1964,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortVentCover(pModel);
                     PortRingGrid(pModel);
                     PortRingTunnel(pModel);
+                    PortRingOuter(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
                     PortHidePackets(pModel);
