@@ -1106,6 +1106,76 @@ static void PortRingGrid(glModel* pModel)
     fprintf(stderr, "RINGGRID model=%08x verts=%d\n", (unsigned)pModel->id, n);
 }
 
+// PORT (mod): Wario Stadium (Kanto Power Plant) goal-end corner pieces (packet 3 of pitchsurroundings12..15) and the four
+// tunnel floors (packet 0 of tunnel_floor_01..04) share texture 627f2552 but had unrelated UV layouts, so tiles came out
+// in different sizes. Both are remapped planar from world position: u mirrors about the pitch centre line (one texture
+// repeat = two pitch tiles, 2.06 wide each), v runs outward from the pitch edge (|y| = 12.08) with one tile row = 2.0133
+// and 16 rows per texture repeat (the replacement texture is 512x4096), so every tile equals a pitch tile and the seams
+// land on the pitch's tile lines. STRIKERS_RING_GRID=0 turns it off.
+static void PortRingTunnel(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_RING_GRID");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    struct Entry { const char* name; int packet; float tx; float ty; };
+    static const Entry kEntries[] = {
+        { "wario_stadium/pitchsurroundings13", 3, -16.6291f, -19.8429f },
+        { "wario_stadium/pitchsurroundings14", 3, -16.6291f, 19.89f },
+        { "wario_stadium/pitchsurroundings12", 3, 16.6248f, -19.8429f },
+        { "wario_stadium/pitchsurroundings15", 3, 16.6248f, 19.6248f },
+        { "wario_stadium/tunnel_floor_01", 0, 16.6248f, -19.8429f },
+        { "wario_stadium/tunnel_floor_02", 0, -16.6291f, -19.8429f },
+        { "wario_stadium/tunnel_floor_03", 0, -16.6291f, 19.89f },
+        { "wario_stadium/tunnel_floor_04", 0, 16.6248f, 19.89f },
+    };
+    const Entry* e = NULL;
+    for (size_t i = 0; i < sizeof(kEntries) / sizeof(kEntries[0]); i++)
+    {
+        if (nlStringLowerHash(kEntries[i].name) == pModel->id)
+        {
+            e = &kEntries[i];
+            break;
+        }
+    }
+    if (e == NULL || (int)pModel->numPackets <= e->packet)
+        return;
+    glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)e->packet * sizeof(glModelPacket));
+    if (p->indexBuffer == 0 || p->state.texture[0] != 0x627f2552u)
+        return;
+    const glModelStream* pos = NULL;
+    const glModelStream* uv = NULL;
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id == 0)
+            pos = &p->streams[st];
+        else if (p->streams[st].id == 3)
+            uv = &p->streams[st];
+    }
+    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        return;
+    const u16* idx = (const u16*)p->indexBuffer;
+    const float xCentre = -0.0043f, halfPeriodU = 4.12f, edgeY = 12.08f, periodV = 32.2133f;
+    int n = 0;
+    for (int i = 0; i < (int)p->numVertices; i++)
+    {
+        const u16 vi = idx[i];
+        const u8* pv = (const u8*)pos->address + (size_t)vi * pos->stride;
+        const float lx = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
+        const float ly = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f;
+        float a = (lx + e->tx - xCentre) * (e->tx < 0.0f ? -1.0f : 1.0f);
+        if (a < 0.0f)
+            a = 0.0f;
+        float d = (ly + e->ty) * (e->ty < 0.0f ? -1.0f : 1.0f);
+        float u = a / halfPeriodU;
+        float v = 11.0f - (d - edgeY) / periodV;
+        u8* pu = (u8*)uv->address + (size_t)vi * uv->stride;
+        PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
+        PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
+        n++;
+    }
+    fprintf(stderr, "RINGTUNNEL model=%08x verts=%d\n", (unsigned)pModel->id, n);
+}
+
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
 // bevel layer. They are given the same state as the ring floor beside them (packet 3) so they read as plain ring floor.
 static void PortRingPlates(glModel* pModel)
@@ -1841,6 +1911,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortFieldExtras(pModel);
                     PortVentCover(pModel);
                     PortRingGrid(pModel);
+                    PortRingTunnel(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
                     PortHidePackets(pModel);
