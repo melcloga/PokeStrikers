@@ -960,7 +960,7 @@ static void PortVentCover(glModel* pModel)
 // two textures that ship unused in the stadium file, so a texture pack can paint both frames:
 //   tex1_256x256_m_b33a7c013462cb6c_14.png (frame A) and tex1_256x256_m_47b2ec76358bb094_14.png (frame B).
 // STRIKERS_ZAPDOS=0 turns it off, STRIKERS_ZAPDOS_SIZE=<half size in world units> resizes it (default 4).
-static void PortZapdosSprite(glModel* pModel)
+[[maybe_unused]] static void PortZapdosSprite(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_ZAPDOS");
     if (sOff != NULL && sOff[0] == '0')
@@ -1054,6 +1054,56 @@ static void PortZapdosSprite(glModel* pModel)
     p->state.texture[0] = (uintptr_t)canon;
     p->state.texconfig |= 0x01;
     fprintf(stderr, "ZAPDOS sprite on model=%08x flip=%d\n", (unsigned)pModel->id, flip ? 1 : 0);
+}
+
+
+// PORT (mod): Wario Stadium (Kanto Power Plant) ring floor along the sidelines (packet 2 of pitchsurroundings12..15, texture
+// 627f2551). Its stock horizontal mapping repeats every 3.04 units, which can never line up with the pitch's 2.06 unit tile
+// grid. The u coordinate is recomputed from world x so one repeat of the texture is exactly two pitch tiles and the seams
+// land on the pitch's vertical tile lines (grid origin: field x min -20.62 plus the field instance's +0.0157).
+// STRIKERS_RING_GRID=0 turns it off.
+static void PortRingGrid(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_RING_GRID");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    float tx = 0.0f;
+    if (nlStringLowerHash("wario_stadium/pitchsurroundings13") == pModel->id || nlStringLowerHash("wario_stadium/pitchsurroundings14") == pModel->id)
+        tx = -16.6291f;
+    else if (nlStringLowerHash("wario_stadium/pitchsurroundings12") == pModel->id || nlStringLowerHash("wario_stadium/pitchsurroundings15") == pModel->id)
+        tx = 16.6248f;
+    else
+        return;
+    if (pModel->numPackets < 3)
+        return;
+    glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)2 * sizeof(glModelPacket));
+    if (p->indexBuffer == 0 || p->state.texture[0] != 0x627f2551u)
+        return;
+    const glModelStream* pos = NULL;
+    const glModelStream* uv = NULL;
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id == 0)
+            pos = &p->streams[st];
+        else if (p->streams[st].id == 3)
+            uv = &p->streams[st];
+    }
+    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        return;
+    const u16* idx = (const u16*)p->indexBuffer;
+    const float gridX0 = -20.6043f, period = 4.12f;
+    int n = 0;
+    for (int i = 0; i < (int)p->numVertices; i++)
+    {
+        const u16 vi = idx[i];
+        const u8* pv = (const u8*)pos->address + (size_t)vi * pos->stride;
+        const float lx = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
+        float u = (lx + tx - gridX0) / period + 10.0f;
+        u8* pu = (u8*)uv->address + (size_t)vi * uv->stride;
+        PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
+        n++;
+    }
+    fprintf(stderr, "RINGGRID model=%08x verts=%d\n", (unsigned)pModel->id, n);
 }
 
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
@@ -1790,7 +1840,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortRingPlates(pModel);
                     PortFieldExtras(pModel);
                     PortVentCover(pModel);
-                    PortZapdosSprite(pModel);
+                    PortRingGrid(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
                     PortHidePackets(pModel);
