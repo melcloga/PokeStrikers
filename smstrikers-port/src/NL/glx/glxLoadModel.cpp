@@ -61,7 +61,7 @@ static bool PortPitchUnifyMatch(unsigned long id)
     static const char* sEnv = getenv("STRIKERS_PITCH_UNIFY");
     if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return false;
-    static const std::string sAll = std::string("the_palace/pitch,mario_stadium/newfield01") +
+    static const std::string sAll = std::string("the_palace/pitch,mario_stadium/newfield01,wario_stadium/newfield") +
                                     ((sEnv != NULL && sEnv[0] != '\0') ? std::string(",") + sEnv : std::string());
     std::string list(sAll);
     size_t start = 0;
@@ -980,7 +980,7 @@ static void PortFieldNeutral(glModel* pModel)
     static const char* sKeep = getenv("STRIKERS_FIELD_TINT");
     if (sKeep != NULL && sKeep[0] == '1')
         return;
-    if (nlStringLowerHash("mario_stadium/newfield01") != pModel->id)
+    if (nlStringLowerHash("mario_stadium/newfield01") != pModel->id && nlStringLowerHash("wario_stadium/newfield") != pModel->id)
         return;
     int n = 0;
     for (int k = 0; k < (int)pModel->numPackets; k++)
