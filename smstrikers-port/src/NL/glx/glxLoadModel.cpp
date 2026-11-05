@@ -954,6 +954,108 @@ static void PortVentCover(glModel* pModel)
     fprintf(stderr, "VENTCOVER model=%08x rects=%d\n", (unsigned)pModel->id, e->numRects);
 }
 
+
+// PORT (mod): Wario Stadium (Kanto Power Plant) centre platform: a flat animated Zapdos sprite. One of the stock soft-shadow
+// quads (shadow_vent_02, a single 4-vertex packet) is moved to the middle of the pitch and given a texture animation made of
+// two textures that ship unused in the stadium file, so a texture pack can paint both frames:
+//   tex1_256x256_m_b33a7c013462cb6c_14.png (frame A) and tex1_256x256_m_47b2ec76358bb094_14.png (frame B).
+// STRIKERS_ZAPDOS=0 turns it off, STRIKERS_ZAPDOS_SIZE=<half size in world units> resizes it (default 4).
+static void PortZapdosSprite(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_ZAPDOS");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    if (nlStringLowerHash("wario_stadium/shadow_vent_02") != pModel->id || pModel->numPackets < 1)
+        return;
+    glModelPacket* p = pModel->packets;
+    if (p->indexBuffer == 0 || p->numVertices < 4)
+        return;
+    const glModelStream* pos = NULL;
+    const glModelStream* nrm = NULL;
+    const glModelStream* col = NULL;
+    const glModelStream* uv = NULL;
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id == 0)
+            pos = &p->streams[st];
+        else if (p->streams[st].id == 1)
+            nrm = &p->streams[st];
+        else if (p->streams[st].id == 2)
+            col = &p->streams[st];
+        else if (p->streams[st].id == 3)
+            uv = &p->streams[st];
+    }
+    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        return;
+    const u16* idx = (const u16*)p->indexBuffer;
+    // The quad's instance sits at world (26.0842, -7.9625, 0.0069); aim it at the platform centre.
+    const float itx = 26.0842f, ity = -7.9625f, itz = 0.0069f;
+    float hs = 4.0f;
+    if (const char* v = getenv("STRIKERS_ZAPDOS_SIZE"))
+        if (atof(v) > 0.0)
+            hs = (float)atof(v);
+    const float cx = 0.0f, cy = 0.0f, wz = 0.012f;
+    // keep the winding the stock quad has
+    float o[3][2];
+    for (int k = 0; k < 3; k++)
+    {
+        const u8* pv = (const u8*)pos->address + (size_t)idx[k] * pos->stride;
+        o[k][0] = (float)(s16)((pv[0] << 8) | pv[1]);
+        o[k][1] = (float)(s16)((pv[2] << 8) | pv[3]);
+    }
+    const float cross = (o[1][0] - o[0][0]) * (o[2][1] - o[0][1]) - (o[1][1] - o[0][1]) * (o[2][0] - o[0][0]);
+    const bool flip = cross < 0.0f;
+    // corners BL, BR, TL, TR
+    const float qx[4] = { -hs, hs, -hs, hs };
+    const float qy[4] = { -hs, -hs, hs, hs };
+    const int qu[4] = { 0, 1024, 0, 1024 };
+    const int qv[4] = { 1024, 1024, 0, 0 };
+    const int order[2][4] = { { 0, 1, 2, 3 }, { 1, 0, 3, 2 } };
+    for (int c = 0; c < 4; c++)
+    {
+        const int q = order[flip ? 1 : 0][c];
+        const u16 vi = idx[c];
+        u8* pv = (u8*)pos->address + (size_t)vi * pos->stride;
+        PortStoreBE16(pv, (int)floorf((cx + qx[q] - itx) * 256.0f + 0.5f));
+        PortStoreBE16(pv + 2, (int)floorf((cy + qy[q] - ity) * 256.0f + 0.5f));
+        PortStoreBE16(pv + 4, (int)floorf((wz - itz) * 256.0f + 0.5f));
+        u8* pu = (u8*)uv->address + (size_t)vi * uv->stride;
+        PortStoreBE16(pu, qu[q]);
+        PortStoreBE16(pu + 2, qv[q]);
+        if (col != NULL && col->stride >= 4)
+        {
+            u8* pc = (u8*)col->address + (size_t)vi * col->stride;
+            pc[0] = pc[1] = pc[2] = pc[3] = 255;
+        }
+        if (nrm != NULL && nrm->stride >= 3)
+        {
+            u8* pn = (u8*)nrm->address + (size_t)vi * nrm->stride;
+            pn[0] = 0; pn[1] = 0; pn[2] = 64;
+        }
+    }
+    const unsigned long canon = 0x7A9D0501ul;
+    if (glInventory.GetTextureAnim(canon) == NULL)
+    {
+        GLTextureAnim* pAnim = new (nlMalloc(sizeof(GLTextureAnim), 8, false)) GLTextureAnim();
+        pAnim->m_unk_0x00 = (s32)canon;
+        pAnim->SetNumTextures(2);
+        pAnim->m_mode = 0;
+        pAnim->SetFrame(0);
+        GLAnimTex animTex;
+        const unsigned long frames[2] = { 0x823d38cful, 0xc9e452e1ul };
+        for (int i = 0; i < 2; i++)
+        {
+            animTex.textureHandle = frames[i];
+            animTex.time = 0.15f;
+            pAnim->SetTexture(i, animTex);
+        }
+        glInventory.AddTextureAnim(canon, pAnim);
+    }
+    p->state.texture[0] = (uintptr_t)canon;
+    p->state.texconfig |= 0x01;
+    fprintf(stderr, "ZAPDOS sprite on model=%08x flip=%d\n", (unsigned)pModel->id, flip ? 1 : 0);
+}
+
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
 // bevel layer. They are given the same state as the ring floor beside them (packet 3) so they read as plain ring floor.
 static void PortRingPlates(glModel* pModel)
@@ -1688,6 +1790,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortRingPlates(pModel);
                     PortFieldExtras(pModel);
                     PortVentCover(pModel);
+                    PortZapdosSprite(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
                     PortHidePackets(pModel);
