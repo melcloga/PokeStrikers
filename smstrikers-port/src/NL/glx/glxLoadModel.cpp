@@ -764,15 +764,18 @@ struct PortFieldExtra
     unsigned packetMask;
     float sx, sy, tx, ty;
     float zset; // model-space height to flatten the packet to (1000 = leave as is)
+    int kind;   // 0 = Pipeline Central's field, 1 = Wario Stadium's field
 };
 static const PortFieldExtra kPortFieldExtras[] = {
-    { "mario_stadium/netshadow_01", 0x7u, -1.0f, -1.0f, -20.2149f, 3.7794f, 1000.0f },
-    { "mario_stadium/goalpost_floor01", 0x1u, 1.0f, 1.0f, -22.8025f, 0.0f, 1000.0f },
-    { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f, 1000.0f },
-    { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f, 1000.0f },
-    { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f, 1000.0f },
-    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f, 0.0f },
-    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f, 0.0f },
+    { "mario_stadium/netshadow_01", 0x7u, -1.0f, -1.0f, -20.2149f, 3.7794f, 1000.0f, 0 },
+    { "mario_stadium/goalpost_floor01", 0x1u, 1.0f, 1.0f, -22.8025f, 0.0f, 1000.0f, 0 },
+    { "mario_stadium/goalpost_floor02", 0x1u, 1.0f, 1.0f, 22.8026f, 0.0f, 1000.0f, 0 },
+    { "mario_stadium/object22", 0x1u, -1.0f, -1.0f, -0.0194f, 0.0f, 1000.0f, 0 },
+    { "mario_stadium/netshadow_02", 0x1u, -1.0f, -1.0f, 22.6817f, 0.4673f, 1000.0f, 0 },
+    { "mario_stadium/pitchsurrounding03", 0x10u, -1.0f, -1.0f, 1.0266f, -13.3978f, 0.0f, 0 },
+    { "mario_stadium/pitchsurrounding05", 0x10u, -1.0f, -1.0f, 1.0266f, 13.3141f, 0.0f, 0 },
+    // Wario Stadium: the piece behind the left goal fills a gap in the field with a copy of the field texture.
+    { "wario_stadium/shadow_goalpost_04", 0x1u, 1.0f, 1.0f, -16.6291f, 19.8900f, 1000.0f, 1 },
 };
 
 // PORT (mod): Pipeline Central's pitch has rectangular cut-outs along both sideline rings where the recessed vent
@@ -1045,7 +1048,14 @@ static void PortFieldExtras(glModel* pModel)
     if (e == NULL)
         return;
     // newfield01 model-space bounds and instance transform (x scaled 1.5, y shifted -0.1717).
-    const float xmin = -16.590908f, xmax = 16.590902f, ymin = -14.074756f, ymax = 14.519859f;
+    float xmin = -16.590908f, xmax = 16.590902f, ymin = -14.074756f, ymax = 14.519859f;
+    // world -> field model space: x' = wx * fkx + fbx, y' = wy * fky + fby
+    float fkx = 1.0f / 1.5f, fbx = 0.0f, fky = 1.0f, fby = 0.1717f;
+    if (e->kind == 1)
+    {
+        xmin = -20.62f; xmax = 20.58f; ymin = -12.1f; ymax = 12.06f;
+        fkx = 1.0f; fbx = -0.0157f; fky = 1.0f; fby = -0.0215f;
+    }
     int done = 0;
     for (int k = 0; k < (int)pModel->numPackets && k < 32; k++)
     {
@@ -1145,8 +1155,8 @@ static void PortFieldExtras(glModel* pModel)
             }
             const float wx = e->sx * x + e->tx;
             const float wy = e->sy * y + e->ty;
-            const float u = (wx / 1.5f - xmin) / (xmax - xmin) * 1024.0f;
-            const float v = (ymax - (wy + 0.1717f)) / (ymax - ymin) * 1024.0f;
+            const float u = (wx * fkx + fbx - xmin) / (xmax - xmin) * 1024.0f;
+            const float v = (ymax - (wy * fky + fby)) / (ymax - ymin) * 1024.0f;
             int ui = (int)(u + (u < 0 ? -0.5f : 0.5f));
             int vi = (int)(v + (v < 0 ? -0.5f : 0.5f));
             if (ui < -32768) ui = -32768;
@@ -1161,7 +1171,7 @@ static void PortFieldExtras(glModel* pModel)
             if (detailIdx >= 0)
             {
                 // The field pieces' detail-layer UV is a plain linear function of position (fitted from the data).
-                const float xm = wx / 1.5f, ym = wy + 0.1717f;
+                const float xm = wx * fkx + fbx, ym = wy * fky + fby;
                 int du = (int)floorf((0.4380f * xm + 7.2645f) * 1024.0f + 0.5f);
                 int dv = (int)floorf((-0.1150f * ym - 2.7295f) * 1024.0f + 0.5f);
                 u8* pd = (u8*)p->streams[detailIdx].address + (size_t)idx[i] * p->streams[detailIdx].stride;
@@ -1181,7 +1191,7 @@ static void PortFieldExtras(glModel* pModel)
             for (int t = 2; t < 6; t++)
                 p->state.texture[t] = (uintptr_t)0xffffffffu;
         }
-        p->state.texture[0] = (uintptr_t)0xf406f013u;
+        p->state.texture[0] = (uintptr_t)(e->kind == 1 ? 0x03f321a5u : 0xf406f013u);
         if (strncmp(e->name, "mario_stadium/netshadow", 23) == 0)
         {
             // Same texture stages as the field pieces themselves: drops the net-shadow layer (and its edge line).
