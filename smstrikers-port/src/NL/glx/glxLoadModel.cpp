@@ -863,6 +863,16 @@ static void PortVentCover(glModel* pModel)
 
     const float xmin = -16.590908f, xmax = 16.590902f, ymin = -14.074756f, ymax = 14.519859f;
     const float zloc = 0.006f - e->tz;
+    // The field pieces draw the picture with a second (detail) layer on UV stream 4. The grate packet has no such
+    // stream, so a new stream array with a detail-UV buffer is made for it; without the layer the patch renders black.
+    int maxIdx = 0;
+    for (int i = 0; i < nIdx; i++)
+        if ((int)idx[i] > maxIdx)
+            maxIdx = idx[i];
+    u8* dbuf = (u8*)calloc((size_t)(maxIdx + 1), 4);
+    glModelStream* nst = (glModelStream*)calloc((size_t)p->numStreams + 1, sizeof(glModelStream));
+    if (dbuf == NULL || nst == NULL)
+        return;
     std::vector<u16> out;
     for (int r = 0; r < e->numRects; r++)
     {
@@ -885,6 +895,14 @@ static void PortVentCover(glModel* pModel)
             u8* pu = (u8*)uv->address + (size_t)v[c] * uv->stride;
             PortStoreBE16(pu, (int)floorf(u + 0.5f));
             PortStoreBE16(pu + 2, (int)floorf(vv + 0.5f));
+            {
+                const float xm = wxs[c] / 1.5f, ym = wys[c] + 0.1717f;
+                const int du = (int)floorf((0.4380f * xm + 7.2645f) * 1024.0f + 0.5f);
+                const int dv = (int)floorf((-0.1150f * ym - 2.7295f) * 1024.0f + 0.5f);
+                u8* pd = dbuf + (size_t)v[c] * 4;
+                PortStoreBE16(pd, du);
+                PortStoreBE16(pd + 2, dv);
+            }
             if (col != NULL && col->stride >= 4)
             {
                 u8* pc = (u8*)col->address + (size_t)v[c] * col->stride;
@@ -914,7 +932,21 @@ static void PortVentCover(glModel* pModel)
     // Anything left over collapses onto the first vertex.
     for (int i = 0; i < nIdx; i++)
         idx[i] = (i < (int)out.size()) ? out[(size_t)i] : out[0];
+    for (int st = 0; st < (int)p->numStreams; st++)
+        nst[st] = p->streams[st];
+    nst[p->numStreams].address = (uintptr_t)dbuf;
+    nst[p->numStreams].id = 4;
+    nst[p->numStreams].stride = 4;
+    nst[p->numStreams].beData = uv->beData;
+    nst[p->numStreams].dataSize = (u32)((maxIdx + 1) * 4);
+    p->streams = nst;
+    p->numStreams = (u8)(p->numStreams + 1);
+    p->state.texturestate = 0x12b00000ULL;
+    p->state.texconfig = 0x03;
     p->state.texture[0] = (uintptr_t)0xf406f013u;
+    p->state.texture[1] = (uintptr_t)0x5c5698b2u;
+    for (int t = 2; t < 6; t++)
+        p->state.texture[t] = (uintptr_t)0xffffffffu;
     fprintf(stderr, "VENTCOVER model=%08x rects=%d\n", (unsigned)pModel->id, e->numRects);
 }
 
