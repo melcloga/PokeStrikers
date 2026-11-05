@@ -878,7 +878,8 @@ static void PortVentCover(glModel* pModel)
     {
         const PortVentRect& rc = e->rects[r];
         // corners in order BL, BR, TL, TR (world)
-        const float wxs[4] = { rc.x0, rc.x1, rc.x0, rc.x1 };
+        // The table's x values are in the field model's own units; the field instance stretches x by 1.5 in the world.
+        const float wxs[4] = { rc.x0 * 1.5f, rc.x1 * 1.5f, rc.x0 * 1.5f, rc.x1 * 1.5f };
         const float wys[4] = { rc.y0, rc.y0, rc.y1, rc.y1 };
         u16 v[4];
         for (int c = 0; c < 4; c++)
