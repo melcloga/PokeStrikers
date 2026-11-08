@@ -1257,6 +1257,99 @@ static void PortWarioFloor(glModel* pModel)
 }
 
 
+// PORT (mod): Forbidden Dome's floor is many pieces (pitch_01, floor_01, floor_03, the goal floors), each with its own small
+// texture. All of them are remapped to ONE picture covering world x[-40, 40], y[-17.6, 17.6] (8000 x 3520 px at 100 px per unit,
+// row 0 = top, +x right, +y up). The picture is the texture the pitch's first layer used (tex1_512x512_m_515e9aa116af19cd_14.png),
+// so a texture pack replaces the whole floor with one PNG of any size in @forbidden_dome. STRIKERS_FORBIDDEN_FLOOR=0 turns it off.
+static const PortWarioFloorPiece kPortForbiddenFloor[] = {
+    { "forbidden_dome/floor_01", 0x7u, -18.822f, -0.037f },
+    { "forbidden_dome/floor_03", 0x7u, 21.174f, 0.0f },
+    { "forbidden_dome/pitch_01", 0xFu, 0.014f, 0.012f },
+    { "forbidden_dome/goal_floor_01", 0x1u, 22.296f, 0.0f },
+    { "forbidden_dome/goal_floor_02", 0x1u, -22.286f, 0.0f },
+    { "forbidden_dome/goal_floorboards_01", 0x1u, 22.346f, 0.0f },
+    { "forbidden_dome/goal_floorboards_02", 0x1u, -22.369f, 0.0f },
+};
+static void PortForbiddenFloor(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_FORBIDDEN_FLOOR");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    const PortWarioFloorPiece* e = NULL;
+    for (size_t i = 0; i < sizeof(kPortForbiddenFloor) / sizeof(kPortForbiddenFloor[0]); i++)
+    {
+        if (nlStringLowerHash(kPortForbiddenFloor[i].name) == pModel->id)
+        {
+            e = &kPortForbiddenFloor[i];
+            break;
+        }
+    }
+    if (e == NULL)
+        return;
+    const float kX0 = -40.0f, kY1 = 17.6f, kW = 80.0f, kH = 35.2f;
+    int done = 0, verts = 0;
+    for (int k = 0; k < (int)pModel->numPackets && k < 32; k++)
+    {
+        if (!(e->packetMask & (1u << k)))
+            continue;
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        const glModelStream* pos = NULL;
+        const glModelStream* col = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 0)
+                pos = &p->streams[st];
+            else if (p->streams[st].id == 2)
+                col = &p->streams[st];
+            else if (p->streams[st].id == 3)
+                uv = &p->streams[st];
+        }
+        if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4 || (pos->stride != 6 && pos->stride < 12))
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        // vertices are shared by index, so remap each one only once
+        std::vector<unsigned char> seen(65536, 0);
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            if (seen[idx[i]])
+                continue;
+            seen[idx[i]] = 1;
+            const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            float x, y;
+            if (pos->stride >= 12)
+            {
+                x = port_bef32(pv);
+                y = port_bef32(pv + 4);
+            }
+            else
+            {
+                x = (float)(s16)port_be16(pv) / 256.0f;
+                y = (float)(s16)port_be16(pv + 2) / 256.0f;
+            }
+            const float u = (x + e->tx - kX0) / kW * 1024.0f;
+            const float v = (kY1 - (y + e->ty)) / kH * 1024.0f;
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            PortStoreBE16(pu, (int)floorf(u + 0.5f));
+            PortStoreBE16(pu + 2, (int)floorf(v + 0.5f));
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+            verts++;
+        }
+        const bool bShadow = (p->state.texconfig & 0x04) != 0;
+        p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+        p->state.texconfig = bShadow ? 0x05 : 0x01;
+        p->state.texture[0] = (uintptr_t)0xd4eba740u;
+        p->state.texture[1] = (uintptr_t)0xffffffffu;
+        done++;
+    }
+    fprintf(stderr, "FORBIDDENFLOOR model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);
+}
+
+
 static void PortStoreBEF32(u8* q, float f)
 {
     u32 v;
@@ -2088,6 +2181,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortVentCover(pModel);
                     PortRingTunnel(pModel);
                     PortWarioFloor(pModel);
+                    PortForbiddenFloor(pModel);
                     PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
