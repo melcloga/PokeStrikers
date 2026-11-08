@@ -1281,7 +1281,8 @@ static void PortWarioSky(glModel* pModel)
             seen[idx[i]] = 1;
             u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
             const int u = (int)(s16)port_be16(pu);
-            const float f = (float)(u - umin) / (float)(umax - umin);
+            // the picture is seen from inside the cylinder, so run it the other way round to read left to right
+            const float f = 1.0f - (float)(u - umin) / (float)(umax - umin);
             PortStoreBE16(pu, (int)floorf(f * 1024.0f + 0.5f));
             if (col != NULL && col->stride >= 4)
             {
