@@ -1575,6 +1575,27 @@ static void PortForbiddenLedge(glModel* pModel)
                     ns[st].address = (uintptr_t)buf;
                     ns[st].dataSize = (u32)bytes;
                 }
+                else if (ns[st].id == 0)
+                {
+                    // the static layer's own copy of the positions, nudged 6 cm toward the field so it never z-fights with the
+                    // scrolling layer (the far ledge lost it to depth precision)
+                    static const char* sNu = getenv("STRIKERS_FD_LEDGE_NUDGE");
+                    const float nudge = (sNu != NULL && sNu[0] != 0) ? (float)atof(sNu) : 0.06f;
+                    const size_t pbytes = (size_t)(maxId + 1) * ns[st].stride;
+                    u8* pbuf = (u8*)malloc(pbytes);
+                    memcpy(pbuf, (const void*)ns[st].address, pbytes);
+                    for (size_t q = 0; q < en.ids.size(); q++)
+                    {
+                        u8* pv2 = pbuf + (size_t)en.ids[q] * ns[st].stride;
+                        const float dy = b3 ? nudge : -nudge;
+                        if (ns[st].stride >= 12)
+                            PortStoreBEF32(pv2 + 4, port_bef32(pv2 + 4) + dy);
+                        else
+                            PortStoreBE16(pv2 + 2, (int)floorf(((float)(s16)port_be16(pv2 + 2) / 256.0f + dy) * 256.0f + 0.5f));
+                    }
+                    ns[st].address = (uintptr_t)pbuf;
+                    ns[st].dataSize = (u32)pbytes;
+                }
             }
             glModelPacket* c = (glModelPacket*)malloc(sizeof(glModelPacket));
             memcpy(c, p, sizeof(glModelPacket));
