@@ -1232,6 +1232,69 @@ static void PortWarioFloor(glModel* pModel)
     fprintf(stderr, "WARIOFLOOR model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);
 }
 
+
+// PORT (mod): Wario Stadium's sky is one big cylinder (wario_stadium/background) that tiles a tiny 64x128 gradient
+// about 8.9 times around. Its horizontal texture coordinate is rescaled so the cylinder shows the texture exactly once
+// all the way around, which lets a texture pack replace the sky with one big painted picture (any size).
+// STRIKERS_WARIO_SKY=0 keeps the stock tiling.
+static void PortWarioSky(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_WARIO_SKY");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    if (nlStringLowerHash("wario_stadium/background") != pModel->id)
+        return;
+    int done = 0, verts = 0;
+    for (int k = 0; k < (int)pModel->numPackets && k < 32; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        if ((uintptr_t)p->state.texture[0] != (uintptr_t)0xda65aac7u)
+            continue;
+        const glModelStream* col = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 2)
+                col = &p->streams[st];
+            else if (p->streams[st].id == 3)
+                uv = &p->streams[st];
+        }
+        if (uv == NULL || p->indexBuffer == 0 || uv->stride < 4)
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        // vertices are shared by index, so rescale each one only once
+        std::vector<unsigned char> seen(65536, 0);
+        int umin = 0x7fffffff, umax = -0x7fffffff;
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            const u8* pu = (const u8*)uv->address + (size_t)idx[i] * uv->stride;
+            const int u = (int)(s16)port_be16(pu);
+            if (u < umin) umin = u;
+            if (u > umax) umax = u;
+        }
+        if (umax - umin < 1024)
+            continue;
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            if (seen[idx[i]])
+                continue;
+            seen[idx[i]] = 1;
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            const int u = (int)(s16)port_be16(pu);
+            const float f = (float)(u - umin) / (float)(umax - umin);
+            PortStoreBE16(pu, (int)floorf(f * 1024.0f + 0.5f));
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+            verts++;
+        }
+        done++;
+    }
+    fprintf(stderr, "WARIOSKY model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);
+}
+
 // PORT (mod): the two corner plate pieces (packet 4) of Pipeline Central's right-end ring use a lit-plate texture with a
 // bevel layer. They are given the same state as the ring floor beside them (packet 3) so they read as plain ring floor.
 static void PortRingPlates(glModel* pModel)
@@ -1968,6 +2031,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortVentCover(pModel);
                     PortRingTunnel(pModel);
                     PortWarioFloor(pModel);
+                    PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
                     PortHidePackets(pModel);
