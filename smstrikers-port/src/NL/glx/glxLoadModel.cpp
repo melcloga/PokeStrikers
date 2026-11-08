@@ -1357,6 +1357,41 @@ static void PortForbiddenFloor(glModel* pModel)
 // STRIKERS_FD_LEDGE=0 keeps the stock skull frieze.
 static void PortStoreBEF32(u8* q, float f);
 extern int g_portLedgeActive;
+struct PortLedgeEntry
+{
+    u8* uv;
+    int stride;
+    std::vector<int> ids;
+    std::vector<float> baseU;
+    std::vector<float> baseV;
+};
+static std::vector<PortLedgeEntry> g_portLedgeEntries;
+// PORT (mod): scrolls the ledge's LED picture by rewriting the texture coordinates in memory (once per frame).
+void PortLedgeUpdate(int frame)
+{
+    static const char* sSp = getenv("STRIKERS_FD_LEDGE_SCROLL");
+    const float speed = (sSp != NULL && sSp[0] != 0) ? (float)atof(sSp) : 3.0f; // ledge units per second
+    if (speed == 0.0f || g_portLedgeEntries.empty())
+        return;
+    static int sLast = -1;
+    if (frame == sLast)
+        return;
+    sLast = frame;
+    float units = fmodf((float)frame / 60.0f * speed, 46.0f);
+    if (units < 0.0f)
+        units += 46.0f;
+    const float off = units * (0.5f / 92.0f);
+    for (size_t e = 0; e < g_portLedgeEntries.size(); e++)
+    {
+        const PortLedgeEntry& en = g_portLedgeEntries[e];
+        for (size_t i = 0; i < en.ids.size(); i++)
+        {
+            u8* pu = en.uv + (size_t)en.ids[i] * en.stride;
+            PortStoreBE16(pu, (int)floorf((en.baseU[i] + off) * 1024.0f + 0.5f));
+        }
+    }
+}
+
 static void PortForbiddenLedge(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FD_LEDGE");
@@ -1438,6 +1473,9 @@ static void PortForbiddenLedge(glModel* pModel)
             }
         }
         const float totalH = 1.8f + drop;
+        PortLedgeEntry entry;
+        entry.uv = (u8*)uv->address;
+        entry.stride = (int)uv->stride;
         for (size_t a2 = 0; a2 < n; a2++)
         {
             const float x = nx[a2], y = ny[a2], z = nz[a2];
@@ -1471,6 +1509,8 @@ static void PortForbiddenLedge(glModel* pModel)
             u8* pu = (u8*)uv->address + (size_t)ids[a2] * uv->stride;
             PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
             PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
+            entry.ids.push_back(ids[a2]);
+            entry.baseU.push_back(u);
             if (col != NULL && col->stride >= 4)
             {
                 u8* pc = (u8*)col->address + (size_t)ids[a2] * col->stride;
@@ -1478,6 +1518,7 @@ static void PortForbiddenLedge(glModel* pModel)
             }
             verts++;
         }
+        g_portLedgeEntries.push_back(entry);
         const bool bShadow = (p->state.texconfig & 0x04) != 0;
         p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
         p->state.texconfig = bShadow ? 0x05 : 0x01;
@@ -1486,7 +1527,7 @@ static void PortForbiddenLedge(glModel* pModel)
         done++;
     }
     if (done > 0)
-        g_portLedgeActive = 1;
+        g_portLedgeActive = 0; // the scroll is done on the vertex data (PortLedgeUpdate), not with a texture matrix
     fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d drop=%.2f\n", (unsigned)pModel->id, done, verts, drop);
 }
 

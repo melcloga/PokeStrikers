@@ -2324,8 +2324,10 @@ static inline void _Indirect(bool bOn)
 /**
  * Offset/Address/Size: 0x538 | 0x801BA038 | size: 0xB20
  */
+void PortLedgeUpdate(int frame);
 static void glx_DrawPacket(const glModelPacket* packet)
 {
+    PortLedgeUpdate((int)glGetCurrentFrame());
     static _GXPrimitive primitives[6] = {
         GX_TRIANGLES,
         GX_TRIANGLESTRIP,
