@@ -1088,7 +1088,7 @@ static void PortRingGrid(glModel* pModel)
         else if (p->streams[st].id == 3)
             uv = &p->streams[st];
     }
-    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+    if (pos == NULL || uv == NULL || (pos->stride != 6 && pos->stride < 12) || uv->stride < 4)
         return;
     const u16* idx = (const u16*)p->indexBuffer;
     const float gridX0 = -20.6043f, period = 4.12f;
@@ -1097,7 +1097,7 @@ static void PortRingGrid(glModel* pModel)
     {
         const u16 vi = idx[i];
         const u8* pv = (const u8*)pos->address + (size_t)vi * pos->stride;
-        const float lx = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
+        const float lx = (pos->stride == 6) ? (float)(s16)port_be16(pv) / 256.0f : (float)port_bef32(pv);
         float u = (lx + tx - gridX0) / period + 10.0f;
         u8* pu = (u8*)uv->address + (size_t)vi * uv->stride;
         PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
@@ -1136,7 +1136,7 @@ static void PortRingOuter(glModel* pModel)
         else if (p->streams[st].id == 3)
             uv = &p->streams[st];
     }
-    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+    if (pos == NULL || uv == NULL || (pos->stride != 6 && pos->stride < 12) || uv->stride < 4)
         return;
     const u16* idx = (const u16*)p->indexBuffer;
     const float gridX0 = -20.6043f, period = 4.12f, rowY0 = 14.09f, rowH = 2.0133f;
@@ -1145,8 +1145,8 @@ static void PortRingOuter(glModel* pModel)
     {
         const u16 vi = idx[i];
         const u8* pv = (const u8*)pos->address + (size_t)vi * pos->stride;
-        const float lx = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
-        const float ly = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f;
+        const float lx = (pos->stride == 6) ? (float)(s16)port_be16(pv) / 256.0f : (float)port_bef32(pv);
+        const float ly = (pos->stride == 6) ? (float)(s16)port_be16(pv + 2) / 256.0f : (float)port_bef32(pv + 4);
         const float d = (ly + ty) * (ty < 0.0f ? -1.0f : 1.0f);
         const float u = (lx + tx - gridX0) / period + 10.0f;
         const float v = (d - rowY0) / rowH + 10.0f;
@@ -1203,7 +1203,7 @@ static void PortRingTunnel(glModel* pModel)
         else if (p->streams[st].id == 3)
             uv = &p->streams[st];
     }
-    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+    if (pos == NULL || uv == NULL || (pos->stride != 6 && pos->stride < 12) || uv->stride < 4)
         return;
     const u16* idx = (const u16*)p->indexBuffer;
     const float xCentre = -0.0043f, halfPeriodU = 4.12f, edgeY = 12.08f, periodV = 32.2133f;
@@ -1212,8 +1212,8 @@ static void PortRingTunnel(glModel* pModel)
     {
         const u16 vi = idx[i];
         const u8* pv = (const u8*)pos->address + (size_t)vi * pos->stride;
-        const float lx = (float)(s16)((pv[0] << 8) | pv[1]) / 256.0f;
-        const float ly = (float)(s16)((pv[2] << 8) | pv[3]) / 256.0f;
+        const float lx = (pos->stride == 6) ? (float)(s16)port_be16(pv) / 256.0f : (float)port_bef32(pv);
+        const float ly = (pos->stride == 6) ? (float)(s16)port_be16(pv + 2) / 256.0f : (float)port_bef32(pv + 4);
         float a = (lx + e->tx - xCentre) * (e->tx < 0.0f ? -1.0f : 1.0f);
         if (a < 0.0f)
             a = 0.0f;
