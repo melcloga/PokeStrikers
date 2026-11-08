@@ -2763,11 +2763,11 @@ void glx_SendFrame_cb(eGLView view, unsigned long flags, const glModelPacket* p)
         if (clone != NULL)
         {
             static int sLogN = 0;
-            if (sLogN < 6)
+            if (sLogN < 80)
             {
                 sLogN++;
-                fprintf(stderr, "FDLEDGE draw p=%p clone=%p flags=%03lx tex0=%p cfg=%02x rast=%08x\n", (const void*)p, (void*)clone,
-                        (unsigned long)flags, (void*)p->state.texture[0], (unsigned)p->state.texconfig, (unsigned)p->state.raster);
+                fprintf(stderr, "FDLEDGE draw view=%d p=%p clone=%p nv=%u mtx=%p flags=%03lx tex0=%p cfg=%02x rast=%08x\n", (int)view, (const void*)p, (void*)clone,
+                        (unsigned)p->numVertices, (void*)p->state.matrix, (unsigned long)flags, (void*)p->state.texture[0], (unsigned)p->state.texconfig, (unsigned)p->state.raster);
                 if (clone != NULL)
                     fprintf(stderr, "FDLEDGE clone tex0=%p cfg=%02x rast=%08x nv=%u\n", (void*)clone->state.texture[0],
                             (unsigned)clone->state.texconfig, (unsigned)clone->state.raster, (unsigned)clone->numVertices);

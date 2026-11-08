@@ -1577,10 +1577,10 @@ static void PortForbiddenLedge(glModel* pModel)
                 }
                 else if (ns[st].id == 0)
                 {
-                    // the static layer's own copy of the positions, nudged 6 cm toward the field so it never z-fights with the
+                    // the static layer's own copy of the positions, optionally nudged toward the field (STRIKERS_FD_LEDGE_NUDGE, default off: it made the tops flicker) so it never z-fights with the
                     // scrolling layer (the far ledge lost it to depth precision)
                     static const char* sNu = getenv("STRIKERS_FD_LEDGE_NUDGE");
-                    const float nudge = (sNu != NULL && sNu[0] != 0) ? (float)atof(sNu) : 0.06f;
+                    const float nudge = (sNu != NULL && sNu[0] != 0) ? (float)atof(sNu) : 0.0f;
                     const size_t pbytes = (size_t)(maxId + 1) * ns[st].stride;
                     u8* pbuf = (u8*)malloc(pbytes);
                     memcpy(pbuf, (const void*)ns[st].address, pbytes);
