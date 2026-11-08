@@ -2483,22 +2483,6 @@ static void glx_DrawPacket(const glModelPacket* packet)
     }
 
     const bool bSkySpin = g_portSkyCount > 0 && PortSkySpinDegPerSec() != 0.0f && PortIsSkyPacket(p);
-    const bool bLedgeScroll = PortLedgeScrollUnitsPerSec() != 0.0f && PortIsLedgePacket(p);
-    if (bLedgeScroll)
-    {
-        // the board's picture repeats every 46 units of ledge (a quarter of the texture), so this loop is seamless
-        const float t = (float)glGetCurrentFrame() / 60.0f;
-        float units = fmodf(t * PortLedgeScrollUnitsPerSec(), 46.0f);
-        if (units < 0.0f)
-            units += 46.0f;
-        Mtx m;
-        memset(m, 0, sizeof(m));
-        m[0][0] = 1.0f; m[0][3] = units * (0.5f / 92.0f);
-        m[1][1] = 1.0f;
-        m[2][2] = 1.0f;
-        GXLoadTexMtxImm(m, 0x1E, (_GXTexMtxType)1);
-        gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x1E);
-    }
     if (bSkySpin)
     {
         const float ang = PortSkySpinDegPerSec() * (float)glGetCurrentFrame() / 60.0f * 0.01745329252f;
@@ -2517,6 +2501,18 @@ static void glx_DrawPacket(const glModelPacket* packet)
         }
         gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x1E);
     }
+
+    // PORT (mod): the Forbidden Dome ledge's two layers draw unlit (the picture's own colours, a little brighter than lit)
+    const bool bLedgeStaticLayer = g_portLedgeActive != 0 && p->state.texture[0] == (uintptr_t)0x49ef0df6u;
+    const bool bLedgeLayer = bLedgeStaticLayer || (g_portLedgeActive != 0 && p->state.texture[0] == (uintptr_t)0xd4ec33a1u);
+    if (bLedgeLayer)
+    {
+        static const char* sGlow = getenv("STRIKERS_FD_LEDGE_GLOW");
+        if (!(sGlow != NULL && sGlow[0] == '0'))
+            GXSetTevColorIn((GXTevStageID)0, (GXTevColorArg)15, (GXTevColorArg)15, (GXTevColorArg)15, (GXTevColorArg)8);
+    }
+    if (bLedgeStaticLayer)
+        gxSetCoPlanar(true);
 
     if (p->indexBuffer == 0)
     {
@@ -2597,7 +2593,9 @@ static void glx_DrawPacket(const glModelPacket* packet)
         }
     }
 
-    if (bSkySpin || bLedgeScroll)
+    if (bLedgeStaticLayer)
+        gxSetCoPlanar(false);
+    if (bSkySpin)
     {
         gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x3C);
     }
@@ -2740,8 +2738,32 @@ static inline void glx_SwitchMatrix(const glModelPacket* p)
 /**
  * Offset/Address/Size: 0x0 | 0x801B9B00 | size: 0x538
  */
+glModelPacket* PortLedgeCloneFor(const glModelPacket* p);
 void glx_SendFrame_cb(eGLView view, unsigned long flags, const glModelPacket* p)
 {
+    // PORT (mod): the ledge is drawn twice, scrolling layer then static layer (borders, logos), and whatever comes next has
+    // every state re-applied, because the second pass changed texture, blending and TEV state behind the packet list's back.
+    static bool sLedgeBusy = false;
+    static bool sLedgeForce = false;
+    if (p != NULL && sLedgeForce)
+    {
+        flags |= 0x9FF;
+        sLedgeForce = false;
+    }
+    if (!sLedgeBusy && p != NULL && (flags & 0x800) && g_portLedgeActive != 0 &&
+        p->state.texture[0] == (uintptr_t)0xd4ec33a1u)
+    {
+        glModelPacket* clone = PortLedgeCloneFor(p);
+        if (clone != NULL)
+        {
+            sLedgeBusy = true;
+            glx_SendFrame_cb(view, flags, p);
+            glx_SendFrame_cb(view, 0x9FF, clone);
+            sLedgeBusy = false;
+            sLedgeForce = true;
+            return;
+        }
+    }
     if (p != NULL)
     {
         if (glx_DirtyFlags != 0)

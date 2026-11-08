@@ -1364,8 +1364,23 @@ struct PortLedgeEntry
     std::vector<int> ids;
     std::vector<float> baseU;
     std::vector<float> baseV;
+    u8* origUv;
+    glModelPacket* clone; // the same ledge again, with the static layer's texture and its own (unscrolled) texture coordinates
 };
 static std::vector<PortLedgeEntry> g_portLedgeEntries;
+// PORT (mod): the static layer of the ledge (borders and logos): drawn right after the scrolling layer, alpha blended.
+glModelPacket* PortLedgeCloneFor(const glModelPacket* p)
+{
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id != 3)
+            continue;
+        for (size_t e = 0; e < g_portLedgeEntries.size(); e++)
+            if ((u8*)p->streams[st].address == g_portLedgeEntries[e].origUv)
+                return g_portLedgeEntries[e].clone;
+    }
+    return NULL;
+}
 // PORT (mod): scrolls the ledge's LED picture by rewriting the texture coordinates in memory (once per frame).
 void PortLedgeUpdate(int frame)
 {
@@ -1475,7 +1490,10 @@ static void PortForbiddenLedge(glModel* pModel)
         const float totalH = 1.8f + drop;
         PortLedgeEntry entry;
         entry.uv = (u8*)uv->address;
+        entry.origUv = (u8*)uv->address;
+        entry.clone = NULL;
         entry.stride = (int)uv->stride;
+        std::vector<float> staticU, staticV;
         for (size_t a2 = 0; a2 < n; a2++)
         {
             const float x = nx[a2], y = ny[a2], z = nz[a2];
@@ -1511,6 +1529,13 @@ static void PortForbiddenLedge(glModel* pModel)
             PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
             entry.ids.push_back(ids[a2]);
             entry.baseU.push_back(u);
+            {
+                float us = (s2 + 46.0f) / 92.0f;
+                if (us < 0.0f) us = 0.0f;
+                if (us > 1.0f) us = 1.0f;
+                staticU.push_back(us);
+                staticV.push_back(v);
+            }
             if (col != NULL && col->stride >= 4)
             {
                 u8* pc = (u8*)col->address + (size_t)ids[a2] * col->stride;
@@ -1524,10 +1549,44 @@ static void PortForbiddenLedge(glModel* pModel)
         p->state.texconfig = bShadow ? 0x05 : 0x01;
         p->state.texture[0] = (uintptr_t)0xd4ec33a1u;
         p->state.texture[1] = (uintptr_t)0xffffffffu;
+        // the static layer: a copy of this packet with its own texture coordinates (u along the whole ledge, no scroll), the
+        // otherwise unused texture handle 0x49ef0df6 (tex1_512x512_m_49068f757a672e95_14.png) and alpha blending
+        {
+            PortLedgeEntry& en = g_portLedgeEntries.back();
+            int maxId = 0;
+            for (size_t q = 0; q < en.ids.size(); q++)
+                if (en.ids[q] > maxId) maxId = en.ids[q];
+            const size_t bytes = (size_t)(maxId + 1) * uv->stride;
+            u8* buf = (u8*)malloc(bytes);
+            memcpy(buf, (const void*)uv->address, bytes);
+            for (size_t q = 0; q < en.ids.size(); q++)
+            {
+                u8* pu2 = buf + (size_t)en.ids[q] * uv->stride;
+                PortStoreBE16(pu2, (int)floorf(staticU[q] * 1024.0f + 0.5f));
+                PortStoreBE16(pu2 + 2, (int)floorf(staticV[q] * 1024.0f + 0.5f));
+            }
+            glModelStream* ns = (glModelStream*)malloc(sizeof(glModelStream) * p->numStreams);
+            memcpy(ns, p->streams, sizeof(glModelStream) * p->numStreams);
+            for (int st = 0; st < (int)p->numStreams; st++)
+            {
+                if (ns[st].id == 3)
+                {
+                    ns[st].address = (uintptr_t)buf;
+                    ns[st].dataSize = (u32)bytes;
+                }
+            }
+            glModelPacket* c = (glModelPacket*)malloc(sizeof(glModelPacket));
+            memcpy(c, p, sizeof(glModelPacket));
+            c->streams = ns;
+            c->state.texture[0] = (uintptr_t)0x49ef0df6u;
+            glSetRasterState(c->state.raster, GLS_AlphaBlend, 1);
+            glSetRasterState(c->state.raster, GLS_DepthWrite, 0);
+            en.clone = c;
+        }
         done++;
     }
     if (done > 0)
-        g_portLedgeActive = 0; // the scroll is done on the vertex data (PortLedgeUpdate), not with a texture matrix
+        g_portLedgeActive = 1; // the scroll is done on the vertex data (PortLedgeUpdate), not with a texture matrix
     fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d drop=%.2f\n", (unsigned)pModel->id, done, verts, drop);
 }
 
