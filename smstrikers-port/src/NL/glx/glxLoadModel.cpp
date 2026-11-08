@@ -1533,6 +1533,7 @@ static void PortForbiddenLedge(glModel* pModel)
                 float us = (s2 + 46.0f) / 92.0f;
                 if (us < 0.0f) us = 0.0f;
                 if (us > 1.0f) us = 1.0f;
+                if (b3) us = 1.0f - us; // seen from the field the far ledge runs the other way; keep the logos readable
                 staticU.push_back(us);
                 staticV.push_back(v);
             }
