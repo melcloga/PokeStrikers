@@ -1350,6 +1350,101 @@ static void PortForbiddenFloor(glModel* pModel)
 }
 
 
+// PORT (mod): Forbidden Dome's sky is a shallow dome (forbidden_dome/skybox_01: two halves, two 256x256 textures) plus a
+// horizon band (skybox_02) and a top cap (skybox_03). Both dome halves are remapped to ONE picture seen from straight above:
+// the zenith is the centre of the image, the horizon is a circle of radius 45.5% of the width, and the lowest edge of the dome
+// reaches the picture's edge circle (radius 50%); up (+y in the world) is the top of the picture and +x is the right. The picture
+// is the first half's texture (tex1_256x256_m_58a357dbc678ceb4_14.png), so a texture pack can replace the whole sky with one PNG
+// of any size. The band and cap are hidden. STRIKERS_FD_SKY=0 keeps the stock sky; STRIKERS_FD_SKY_KEEP=1 keeps the band and cap.
+static void PortForbiddenSky(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_FD_SKY");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    static const char* sKeep = getenv("STRIKERS_FD_SKY_KEEP");
+    const bool bBand = nlStringLowerHash("forbidden_dome/skybox_02") == pModel->id ||
+                       nlStringLowerHash("forbidden_dome/skybox_03") == pModel->id;
+    if (bBand && !(sKeep != NULL && sKeep[0] == '1'))
+    {
+        for (int k = 0; k < (int)pModel->numPackets; k++)
+        {
+            glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+            if (p->indexBuffer == 0 || p->numVertices == 0)
+                continue;
+            u16* idx = (u16*)p->indexBuffer;
+            for (int i = 0; i < (int)p->numVertices; i++)
+                idx[i] = idx[0];
+        }
+        fprintf(stderr, "FDSKY hid model=%08x\n", (unsigned)pModel->id);
+        return;
+    }
+    if (nlStringLowerHash("forbidden_dome/skybox_01") != pModel->id)
+        return;
+    const float kViewZ = -28.0f; // the player's eye height in the dome's own coordinates (the dome sits 30 up in the world)
+    const float kPi = 3.14159265f;
+    int done = 0, verts = 0;
+    for (int k = 0; k < (int)pModel->numPackets && k < 8; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        const glModelStream* pos = NULL;
+        const glModelStream* col = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 0)
+                pos = &p->streams[st];
+            else if (p->streams[st].id == 2)
+                col = &p->streams[st];
+            else if (p->streams[st].id == 3)
+                uv = &p->streams[st];
+        }
+        if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4 || (pos->stride != 6 && pos->stride < 12))
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        std::vector<unsigned char> seen(65536, 0);
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            if (seen[idx[i]])
+                continue;
+            seen[idx[i]] = 1;
+            const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            float x, y, z;
+            if (pos->stride >= 12)
+            {
+                x = port_bef32(pv);
+                y = port_bef32(pv + 4);
+                z = port_bef32(pv + 8);
+            }
+            else
+            {
+                x = (float)(s16)port_be16(pv) / 256.0f;
+                y = (float)(s16)port_be16(pv + 2) / 256.0f;
+                z = (float)(s16)port_be16(pv + 4) / 256.0f;
+            }
+            const float rh = sqrtf(x * x + y * y);
+            const float elev = atan2f(z - kViewZ, rh); // 90 degrees straight up, 0 at the horizon
+            float rho = (kPi * 0.5f - elev) / (kPi * 0.5f); // 0 at the zenith, 1 at the horizon
+            rho = rho / 1.1f;
+            const float az = (rh > 0.001f) ? atan2f(y, x) : 0.0f;
+            const float u = 0.5f + 0.5f * rho * cosf(az);
+            const float v = 0.5f - 0.5f * rho * sinf(az);
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
+            PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+            verts++;
+        }
+        p->state.texture[0] = (uintptr_t)0xc0c768e9u;
+        done++;
+    }
+    fprintf(stderr, "FDSKY model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);
+}
+
+
 static void PortStoreBEF32(u8* q, float f)
 {
     u32 v;
@@ -2182,6 +2277,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortRingTunnel(pModel);
                     PortWarioFloor(pModel);
                     PortForbiddenFloor(pModel);
+                    PortForbiddenSky(pModel);
                     PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
