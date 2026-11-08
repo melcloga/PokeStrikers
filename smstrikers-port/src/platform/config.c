@@ -129,7 +129,8 @@ static int is_path_key(const char* name)
 static int load_file(const char* path)
 {
     FILE* f = fopen(path, "rb");
-    char line[1024];
+    // long lists (hide_objects, hide_packets) can run to several thousand characters
+    static char line[32768];
     char dir[1024];
     char full[2048];
     int applied = 0;

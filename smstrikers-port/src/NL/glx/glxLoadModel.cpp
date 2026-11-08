@@ -297,6 +297,30 @@ static void PortHidePackets(glModel* pModel)
 {
     // Built in: Pipeline Central's goal-end lift plates (they exist on one end only). Hidden at model level so it
     // holds however the world creates them. STRIKERS_HIDE_PACKETS adds more; =0 turns the built-in ones off.
+    // wario_no_ceiling_lights = 1 (ini) hides all of Wario Stadium's hanging dome lights without a long list.
+    {
+        static const char* sCeil = getenv("STRIKERS_WARIO_NO_CEILING_LIGHTS");
+        if (sCeil != NULL && sCeil[0] == '1')
+        {
+            for (int n = 1; n <= 60; n++)
+            {
+                char nm[64];
+                snprintf(nm, sizeof nm, "wario_stadium/dome_lights_%02d", n);
+                if (nlStringLowerHash(nm) != pModel->id)
+                    continue;
+                for (int k = 0; k < (int)pModel->numPackets; k++)
+                {
+                    glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+                    if (p->indexBuffer == 0 || p->numVertices == 0)
+                        continue;
+                    u16* idx = (u16*)p->indexBuffer;
+                    for (int i = 0; i < (int)p->numVertices; i++)
+                        idx[i] = idx[0];
+                }
+                fprintf(stderr, "HIDECEILING model=%08x\n", (unsigned)pModel->id);
+            }
+        }
+    }
     static const char* sEnv = getenv("STRIKERS_HIDE_PACKETS");
     if (sEnv != NULL && strcmp(sEnv, "0") == 0)
         return;
