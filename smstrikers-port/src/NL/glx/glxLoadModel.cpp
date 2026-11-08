@@ -1273,9 +1273,9 @@ static void PortWarioSky(glModel* pModel)
             continue;
         const u16* idx = (const u16*)p->indexBuffer;
         // The stock cylinder is ~490 units across, far beyond the stands. Shrink it into a wall just outside the
-        // stadium (STRIKERS_WARIO_SKY_RADIUS, default 56; 0 keeps the stock size). Its height is set so the top is at
-        // world z=STRIKERS_WARIO_SKY_TOP (default 62) and the bottom at z=-20.
-        float skyR = 56.0f, skyTop = 62.0f;
+        // stadium (STRIKERS_WARIO_SKY_RADIUS, default 48; 0 keeps the stock size). Its height is set so the top is at
+        // world z=STRIKERS_WARIO_SKY_TOP (default 58) and the bottom at z=-20.
+        float skyR = 48.0f, skyTop = 58.0f;
         if (const char* e = getenv("STRIKERS_WARIO_SKY_RADIUS")) skyR = (float)atof(e);
         if (const char* e = getenv("STRIKERS_WARIO_SKY_TOP")) skyTop = (float)atof(e);
         const bool bShrink = skyR > 1.0f && pos != NULL && pos->stride >= 12;
