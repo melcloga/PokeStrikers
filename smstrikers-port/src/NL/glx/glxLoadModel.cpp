@@ -1233,6 +1233,13 @@ static void PortWarioFloor(glModel* pModel)
 }
 
 
+static void PortStoreBEF32(u8* q, float f)
+{
+    u32 v;
+    memcpy(&v, &f, 4);
+    q[0] = (u8)(v >> 24); q[1] = (u8)(v >> 16); q[2] = (u8)(v >> 8); q[3] = (u8)v;
+}
+
 // PORT (mod): Wario Stadium's sky is one big cylinder (wario_stadium/background) that tiles a tiny 64x128 gradient
 // about 8.9 times around. Its horizontal texture coordinate is rescaled so the cylinder shows the texture exactly once
 // all the way around, which lets a texture pack replace the sky with one big painted picture (any size).
@@ -1252,9 +1259,12 @@ static void PortWarioSky(glModel* pModel)
             continue;
         const glModelStream* col = NULL;
         const glModelStream* uv = NULL;
+        const glModelStream* pos = NULL;
         for (int st = 0; st < (int)p->numStreams; st++)
         {
-            if (p->streams[st].id == 2)
+            if (p->streams[st].id == 0)
+                pos = &p->streams[st];
+            else if (p->streams[st].id == 2)
                 col = &p->streams[st];
             else if (p->streams[st].id == 3)
                 uv = &p->streams[st];
@@ -1262,6 +1272,16 @@ static void PortWarioSky(glModel* pModel)
         if (uv == NULL || p->indexBuffer == 0 || uv->stride < 4)
             continue;
         const u16* idx = (const u16*)p->indexBuffer;
+        // The stock cylinder is ~490 units across, far beyond the stands. Shrink it into a wall just outside the
+        // stadium (STRIKERS_WARIO_SKY_RADIUS, default 72; 0 keeps the stock size). Its height is set so the top is at
+        // world z=STRIKERS_WARIO_SKY_TOP (default 75) and the bottom at z=-20.
+        float skyR = 72.0f, skyTop = 75.0f;
+        if (const char* e = getenv("STRIKERS_WARIO_SKY_RADIUS")) skyR = (float)atof(e);
+        if (const char* e = getenv("STRIKERS_WARIO_SKY_TOP")) skyTop = (float)atof(e);
+        const bool bShrink = skyR > 1.0f && pos != NULL && pos->stride >= 12;
+        const float kOrigR = 489.56f, kZTop = 212.585f, kZBot = -260.4f, kLocalOff = -23.303f;
+        const float zB = ((skyTop - kLocalOff) - (-20.0f - kLocalOff)) / (kZTop - kZBot);
+        const float zA = (skyTop - kLocalOff) - zB * kZTop;
         // vertices are shared by index, so rescale each one only once
         std::vector<unsigned char> seen(65536, 0);
         int umin = 0x7fffffff, umax = -0x7fffffff;
@@ -1279,6 +1299,14 @@ static void PortWarioSky(glModel* pModel)
             if (seen[idx[i]])
                 continue;
             seen[idx[i]] = 1;
+            if (bShrink)
+            {
+                u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
+                const float x = port_bef32(pv), y = port_bef32(pv + 4), z = port_bef32(pv + 8);
+                PortStoreBEF32(pv, x * (skyR / kOrigR));
+                PortStoreBEF32(pv + 4, y * (skyR / kOrigR));
+                PortStoreBEF32(pv + 8, zA + zB * z);
+            }
             u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
             const int u = (int)(s16)port_be16(pu);
             // the picture is seen from inside the cylinder, so run it the other way round to read left to right
