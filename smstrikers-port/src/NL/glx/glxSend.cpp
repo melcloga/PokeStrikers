@@ -2776,8 +2776,18 @@ void glx_SendFrame_cb(eGLView view, unsigned long flags, const glModelPacket* p)
         if (clone != NULL)
         {
             sLedgeBusy = true;
+            // the packet in the render list carries its own matrix, user data and view-specific state: draw a copy of IT with
+            // the static layer's vertex streams, picture, texture setup and blending
+            glModelPacket tmp = *p;
+            tmp.streams = clone->streams;
+            tmp.state.texture[0] = clone->state.texture[0];
+            tmp.state.texture[1] = clone->state.texture[1];
+            tmp.state.texturestate = clone->state.texturestate;
+            tmp.state.texconfig = clone->state.texconfig;
+            glSetRasterState(tmp.state.raster, GLS_AlphaBlend, 1);
+            glSetRasterState(tmp.state.raster, GLS_DepthWrite, 0);
             glx_SendFrame_cb(view, flags, p);
-            glx_SendFrame_cb(view, 0x9FF, clone);
+            glx_SendFrame_cb(view, 0x9FF, &tmp);
             sLedgeBusy = false;
             sLedgeForce = true;
             return;
