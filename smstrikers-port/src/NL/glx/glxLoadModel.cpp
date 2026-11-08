@@ -1356,6 +1356,8 @@ static void PortForbiddenFloor(glModel* pModel)
 // reaches the picture's edge circle (radius 50%); up (+y in the world) is the top of the picture and +x is the right. The picture
 // is the first half's texture (tex1_256x256_m_58a357dbc678ceb4_14.png), so a texture pack can replace the whole sky with one PNG
 // of any size. The band and cap are hidden. STRIKERS_FD_SKY=0 keeps the stock sky; STRIKERS_FD_SKY_KEEP=1 keeps the band and cap.
+extern const glModelPacket* g_portSkyPackets[8];
+extern int g_portSkyCount;
 static void PortForbiddenSky(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FD_SKY");
@@ -1439,6 +1441,8 @@ static void PortForbiddenSky(glModel* pModel)
             verts++;
         }
         p->state.texture[0] = (uintptr_t)0xc0c768e9u;
+        if (g_portSkyCount < 8)
+            g_portSkyPackets[g_portSkyCount++] = p;
         done++;
     }
     fprintf(stderr, "FDSKY model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);

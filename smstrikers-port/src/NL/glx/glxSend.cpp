@@ -5,6 +5,7 @@
 #include "dolphin/os.h"
 #include "port/endian.h"
 #include <stdlib.h>
+#include <stdio.h>
 extern "C" int port_region_owns(const void*);  // src/platform/memalloc.cpp
 
 #include "dolphin/gx/GXGeometry.h"
@@ -34,6 +35,7 @@ extern "C" int port_region_owns(const void*);  // src/platform/memalloc.cpp
 #include "types.h"
 #include "dolphin/gx/GXVert.h"
 #include <string.h>
+#include <math.h>
 
 // PORT: linkable, so the debug menu can drive it. Only the keyword changed.
 bool g_bAllowLighting = true;
@@ -223,6 +225,28 @@ static void GetConstants()
         crowdMatrix[1][3] = crowdOffsetV;
         GXLoadTexMtxImm(crowdMatrix, 0x36, (_GXTexMtxType)1);
     }
+}
+
+// PORT (mod): Forbidden Dome's sky packets (registered by PortForbiddenSky) are drawn with a slowly turning texture matrix.
+const glModelPacket* g_portSkyPackets[8];
+int g_portSkyCount = 0;
+static bool PortIsSkyPacket(const glModelPacket* p)
+{
+    for (int i = 0; i < g_portSkyCount; i++)
+        if (g_portSkyPackets[i] == p)
+            return true;
+    return false;
+}
+static float PortSkySpinDegPerSec()
+{
+    static float s = -1.0f;
+    if (s < 0.0f)
+    {
+        s = 2.0f;
+        if (const char* e = getenv("STRIKERS_FD_SKY_SPIN"))
+            s = (float)atof(e);
+    }
+    return s;
 }
 
 static inline void glx_SetVtxAttr()
@@ -2442,6 +2466,26 @@ static void glx_DrawPacket(const glModelPacket* packet)
         }
     }
 
+    const bool bSkySpin = g_portSkyCount > 0 && PortSkySpinDegPerSec() != 0.0f && PortIsSkyPacket(p);
+    if (bSkySpin)
+    {
+        const float ang = PortSkySpinDegPerSec() * (float)glGetCurrentFrame() / 60.0f * 0.01745329252f;
+        const float c = cosf(ang), sn = sinf(ang);
+        Mtx m;
+        memset(m, 0, sizeof(m));
+        m[0][0] = c;  m[0][1] = -sn; m[0][3] = 0.5f - 0.5f * c + 0.5f * sn;
+        m[1][0] = sn; m[1][1] = c;   m[1][3] = 0.5f - 0.5f * sn - 0.5f * c;
+        m[2][2] = 1.0f;
+        GXLoadTexMtxImm(m, 0x1E, (_GXTexMtxType)1);
+        static bool sLogged = false;
+        if (!sLogged)
+        {
+            sLogged = true;
+            fprintf(stderr, "FDSKYSPIN active (%.2f deg/s)\n", PortSkySpinDegPerSec());
+        }
+        gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x1E);
+    }
+
     if (p->indexBuffer == 0)
     {
         GXBegin(primitives[p->primType], (_GXVtxFmt)gx_vtxfmt, p->numVertices);
@@ -2519,6 +2563,11 @@ static void glx_DrawPacket(const glModelPacket* packet)
                 GXEnd();   // PORT: see above
             }
         }
+    }
+
+    if (bSkySpin)
+    {
+        gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x3C);
     }
 
     if (bIndirect)
