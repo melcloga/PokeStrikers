@@ -1612,6 +1612,114 @@ static void PortForbiddenLedge(glModel* pModel)
     fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d drop=%.2f\n", (unsigned)pModel->id, done, verts, drop);
 }
 
+// PORT (mod): Wario Stadium's low ring of 44 ad boards (wario_stadium/billboard_NN, packet 0 is the lit ad face, 1 and 2 the frame)
+// is replaced by one straight, plain wall: twelve of the boards' face quads are rewritten as long vertical panels (the long sides
+// at |y| = 14, a chamfered corner and a short end run per quadrant, the tunnel mouths at x = +-2.1 left open, the stair gaps
+// closed) and every other board packet is collapsed. The panels use the otherwise unused texture handle 0x99a043af
+// (tex1_256x256_m_54b518705ecac4ae_14.png, any size) so a texture pack can dress the wall. STRIKERS_WARIO_WALL=0 keeps the boards;
+// STRIKERS_WARIO_WALL_H sets the height (default 1.2).
+struct PortWallSeg
+{
+    const char* name;
+    float tx, ty, tz;     // the board model's placement (its vertices are relative to it)
+    float ax, ay, bx, by; // the panel's two ends in the world
+    float nx, ny;         // which way it faces (toward the pitch)
+};
+static const PortWallSeg kPortWallSegs[] = {
+    { "wario_stadium/billboard_01", 31.1877f, -7.7871f, 0.2950f, 2.100f, 14.000f, 26.000f, 14.000f, 0.000f, -1.000f },
+    { "wario_stadium/billboard_02", 31.4654f, -10.6403f, 0.2950f, 26.000f, 14.000f, 30.000f, 11.800f, -0.482f, -0.876f },
+    { "wario_stadium/billboard_03", 29.5547f, -12.9672f, 0.2950f, 30.000f, 11.800f, 30.600f, 6.900f, -0.993f, -0.122f },
+    { "wario_stadium/billboard_04", 26.3535f, -14.1562f, 0.2950f, 2.100f, -14.000f, 26.000f, -14.000f, -0.000f, 1.000f },
+    { "wario_stadium/billboard_05", 23.5116f, -14.7189f, 0.2950f, 26.000f, -14.000f, 30.000f, -11.800f, -0.482f, 0.876f },
+    { "wario_stadium/billboard_06", 20.9061f, -15.2754f, 0.2950f, 30.000f, -11.800f, 30.600f, -6.900f, -0.993f, 0.122f },
+    { "wario_stadium/billboard_07", 18.1859f, -15.2255f, 0.2950f, -2.100f, 14.000f, -26.000f, 14.000f, -0.000f, -1.000f },
+    { "wario_stadium/billboard_08", 15.6262f, -14.3817f, 0.2950f, -26.000f, 14.000f, -30.000f, 11.800f, 0.482f, -0.876f },
+    { "wario_stadium/billboard_09", 12.2027f, -14.4950f, 0.2950f, -30.000f, 11.800f, -30.600f, 6.900f, 0.993f, -0.122f },
+    { "wario_stadium/billboard_10", 9.0277f, -15.2566f, 0.2950f, -2.100f, -14.000f, -26.000f, -14.000f, 0.000f, 1.000f },
+    { "wario_stadium/billboard_11", 6.3150f, -14.9213f, 0.2950f, -26.000f, -14.000f, -30.000f, -11.800f, 0.482f, 0.876f },
+    { "wario_stadium/billboard_13", -31.2009f, 7.8795f, 0.2637f, -30.000f, -11.800f, -30.600f, -6.900f, 0.993f, 0.122f },
+};
+static void PortWarioWall(glModel* pModel)
+{
+    static const char* sOn = getenv("STRIKERS_WARIO_WALL");
+    if (sOn != NULL && sOn[0] == '0')
+        return;
+    bool isBoard = false;
+    for (int n = 1; n <= 60 && !isBoard; n++)
+    {
+        char nm[64];
+        snprintf(nm, sizeof nm, "wario_stadium/billboard_%02d", n);
+        if (nlStringLowerHash(nm) == pModel->id)
+            isBoard = true;
+    }
+    if (!isBoard)
+        return;
+    const PortWallSeg* seg = NULL;
+    for (size_t q = 0; q < sizeof(kPortWallSegs) / sizeof(kPortWallSegs[0]); q++)
+        if (nlStringLowerHash(kPortWallSegs[q].name) == pModel->id)
+            seg = &kPortWallSegs[q];
+    static const char* sH = getenv("STRIKERS_WARIO_WALL_H");
+    const float height = (sH != NULL && sH[0] != 0) ? (float)atof(sH) : 1.2f;
+    for (int k = 0; k < (int)pModel->numPackets; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        if (p->indexBuffer == 0 || p->numVertices == 0)
+            continue;
+        u16* idx = (u16*)p->indexBuffer;
+        const glModelStream* pos = NULL;
+        const glModelStream* nrm = NULL;
+        const glModelStream* col = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 0) pos = &p->streams[st];
+            else if (p->streams[st].id == 1) nrm = &p->streams[st];
+            else if (p->streams[st].id == 2) col = &p->streams[st];
+            else if (p->streams[st].id == 3) uv = &p->streams[st];
+        }
+        if (seg == NULL || k != 0 || p->numVertices != 4 || pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        {
+            for (int i = 0; i < (int)p->numVertices; i++)
+                idx[i] = idx[0];
+            continue;
+        }
+        for (int i = 0; i < 4; i++)
+        {
+            const bool top = (i < 2);
+            const bool endB = (i & 1) != 0;
+            const float wx = endB ? seg->bx : seg->ax;
+            const float wy = endB ? seg->by : seg->ay;
+            const float lx = wx - seg->tx, ly = wy - seg->ty, lz = (top ? height : 0.0f) - seg->tz;
+            u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
+            PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));
+            PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
+            PortStoreBE16(pv + 4, (int)floorf(lz * 256.0f + 0.5f));
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            PortStoreBE16(pu, endB ? 1024 : 0);
+            PortStoreBE16(pu + 2, top ? 0 : 1024);
+            if (nrm != NULL && nrm->stride >= 3)
+            {
+                u8* pn = (u8*)nrm->address + (size_t)idx[i] * nrm->stride;
+                pn[0] = (u8)(s8)floorf(seg->nx * 64.0f + 0.5f);
+                pn[1] = (u8)(s8)floorf(seg->ny * 64.0f + 0.5f);
+                pn[2] = 0;
+            }
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+        }
+        const bool bShadow = (p->state.texconfig & 0x04) != 0;
+        p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+        p->state.texconfig = bShadow ? 0x05 : 0x01;
+        p->state.texture[0] = (uintptr_t)0x99a043afu;
+        p->state.texture[1] = (uintptr_t)0xffffffffu;
+        glSetRasterState(p->state.raster, GLS_Culling, 0);
+    }
+    fprintf(stderr, "WARIOWALL model=%08x %s\n", (unsigned)pModel->id, seg != NULL ? "panel" : "hidden");
+}
+
 // PORT (mod): Forbidden Dome's sky is a shallow dome (forbidden_dome/skybox_01: two halves, two 256x256 textures) plus a
 // horizon band (skybox_02) and a top cap (skybox_03). Both dome halves are remapped to ONE picture seen from straight above:
 // the zenith is the centre of the image, the horizon is a circle of radius 45.5% of the width, and the lowest edge of the dome
@@ -2545,6 +2653,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortForbiddenFloor(pModel);
                     PortForbiddenSky(pModel);
                     PortForbiddenLedge(pModel);
+                    PortWarioWall(pModel);
                     PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
