@@ -1350,6 +1350,92 @@ static void PortForbiddenFloor(glModel* pModel)
 }
 
 
+// PORT (mod): the Forbidden Dome ledge in front of the box seats (forbidden_dome/upper_rim_02 and _03) is remapped so its front face
+// shows ONE long flat picture (u runs along the whole ledge, v runs top to bottom of the front face). The picture is the otherwise
+// unused texture handle 0xd4ec33a1 (tex1_512x512_m_ce8f786f15e04a0b_14.png), so a texture pack can replace it with any size.
+// STRIKERS_FD_LEDGE=0 keeps the stock skull frieze.
+static void PortForbiddenLedge(glModel* pModel)
+{
+    static const char* sOff = getenv("STRIKERS_FD_LEDGE");
+    if (sOff != NULL && sOff[0] == '0')
+        return;
+    const bool b2 = nlStringLowerHash("forbidden_dome/upper_rim_02") == pModel->id;
+    const bool b3 = nlStringLowerHash("forbidden_dome/upper_rim_03") == pModel->id;
+    if (!b2 && !b3)
+        return;
+    int done = 0, verts = 0;
+    for (int k = 0; k < (int)pModel->numPackets && k < 8; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        const glModelStream* pos = NULL;
+        const glModelStream* col = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 0)
+                pos = &p->streams[st];
+            else if (p->streams[st].id == 2)
+                col = &p->streams[st];
+            else if (p->streams[st].id == 3)
+                uv = &p->streams[st];
+        }
+        if (pos == NULL || uv == NULL || p->indexBuffer == 0 || uv->stride < 4 || (pos->stride != 6 && pos->stride < 12))
+            continue;
+        const u16* idx = (const u16*)p->indexBuffer;
+        std::vector<unsigned char> seen(65536, 0);
+        for (int i = 0; i < (int)p->numVertices; i++)
+        {
+            if (seen[idx[i]])
+                continue;
+            seen[idx[i]] = 1;
+            const u8* pv = (const u8*)pos->address + (size_t)idx[i] * pos->stride;
+            float x, y, z;
+            if (pos->stride >= 12)
+            {
+                x = port_bef32(pv);
+                y = port_bef32(pv + 4);
+                z = port_bef32(pv + 8);
+            }
+            else
+            {
+                x = (float)(s16)port_be16(pv) / 256.0f;
+                y = (float)(s16)port_be16(pv + 2) / 256.0f;
+                z = (float)(s16)port_be16(pv + 4) / 256.0f;
+            }
+            const float yy = b3 ? -y : y;
+            const float ax = fabsf(x);
+            float s = x;
+            if (ax > 24.0f)
+            {
+                const float d = sqrtf((ax - 24.0f) * (ax - 24.0f) + (yy - 9.0f) * (yy - 9.0f));
+                s = (x < 0.0f) ? -(24.0f + d) : (24.0f + d);
+            }
+            float u = (s + 46.0f) / 92.0f;
+            float v = (-0.1f - z) / 0.8f;
+            if (u < 0.0f) u = 0.0f;
+            if (u > 1.0f) u = 1.0f;
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
+            PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+            verts++;
+        }
+        const bool bShadow = (p->state.texconfig & 0x04) != 0;
+        p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+        p->state.texconfig = bShadow ? 0x05 : 0x01;
+        p->state.texture[0] = (uintptr_t)0xd4ec33a1u;
+        p->state.texture[1] = (uintptr_t)0xffffffffu;
+        done++;
+    }
+    fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);
+}
+
 // PORT (mod): Forbidden Dome's sky is a shallow dome (forbidden_dome/skybox_01: two halves, two 256x256 textures) plus a
 // horizon band (skybox_02) and a top cap (skybox_03). Both dome halves are remapped to ONE picture seen from straight above:
 // the zenith is the centre of the image, the horizon is a circle of radius 45.5% of the width, and the lowest edge of the dome
@@ -2282,6 +2368,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortWarioFloor(pModel);
                     PortForbiddenFloor(pModel);
                     PortForbiddenSky(pModel);
+                    PortForbiddenLedge(pModel);
                     PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
