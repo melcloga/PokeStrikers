@@ -1356,6 +1356,7 @@ static void PortForbiddenFloor(glModel* pModel)
 // ledge, v top to bottom): the otherwise unused texture handle 0xd4ec33a1 (tex1_512x512_m_ce8f786f15e04a0b_14.png), any size.
 // STRIKERS_FD_LEDGE=0 keeps the stock skull frieze.
 static void PortStoreBEF32(u8* q, float f);
+extern int g_portLedgeActive;
 static void PortForbiddenLedge(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FD_LEDGE");
@@ -1461,10 +1462,10 @@ static void PortForbiddenLedge(glModel* pModel)
                 const float d = sqrtf((ax - 24.0f) * (ax - 24.0f) + (yy - 9.0f) * (yy - 9.0f));
                 s2 = (x < 0.0f) ? -(24.0f + d) : (24.0f + d);
             }
-            float u = (s2 + 46.0f) / 92.0f;
+            float u = 0.25f + 0.5f * (s2 + 46.0f) / 92.0f; // the middle half of the texture, so it can scroll by a quarter
             float v = (0.9f - z) / totalH;
-            if (u < 0.0f) u = 0.0f;
-            if (u > 1.0f) u = 1.0f;
+            if (u < 0.25f) u = 0.25f;
+            if (u > 0.75f) u = 0.75f;
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             u8* pu = (u8*)uv->address + (size_t)ids[a2] * uv->stride;
@@ -1484,6 +1485,8 @@ static void PortForbiddenLedge(glModel* pModel)
         p->state.texture[1] = (uintptr_t)0xffffffffu;
         done++;
     }
+    if (done > 0)
+        g_portLedgeActive = 1;
     fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d drop=%.2f\n", (unsigned)pModel->id, done, verts, drop);
 }
 

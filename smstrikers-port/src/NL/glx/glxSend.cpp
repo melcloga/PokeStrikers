@@ -230,12 +230,26 @@ static void GetConstants()
 // PORT (mod): Forbidden Dome's sky packets (registered by PortForbiddenSky) are drawn with a slowly turning texture matrix.
 const glModelPacket* g_portSkyPackets[8];
 int g_portSkyCount = 0;
+int g_portLedgeActive = 0;
 static bool PortIsSkyPacket(const glModelPacket* p)
 {
-    for (int i = 0; i < g_portSkyCount; i++)
-        if (g_portSkyPackets[i] == p)
-            return true;
-    return false;
+    // PORT: matched by texture handle (the draw may be made from a copy of the packet, so its address cannot be compared)
+    return p->state.texture[0] == (uintptr_t)0xc0c768e9u;
+}
+static bool PortIsLedgePacket(const glModelPacket* p)
+{
+    return g_portLedgeActive != 0 && p->state.texture[0] == (uintptr_t)0xd4ec33a1u;
+}
+static float PortLedgeScrollUnitsPerSec()
+{
+    static float s = -1.0f;
+    if (s < 0.0f)
+    {
+        s = 3.0f;
+        if (const char* e = getenv("STRIKERS_FD_LEDGE_SCROLL"))
+            s = (float)atof(e);
+    }
+    return s;
 }
 static float PortSkySpinDegPerSec()
 {
@@ -2467,6 +2481,22 @@ static void glx_DrawPacket(const glModelPacket* packet)
     }
 
     const bool bSkySpin = g_portSkyCount > 0 && PortSkySpinDegPerSec() != 0.0f && PortIsSkyPacket(p);
+    const bool bLedgeScroll = PortLedgeScrollUnitsPerSec() != 0.0f && PortIsLedgePacket(p);
+    if (bLedgeScroll)
+    {
+        // the board's picture repeats every 46 units of ledge (a quarter of the texture), so this loop is seamless
+        const float t = (float)glGetCurrentFrame() / 60.0f;
+        float units = fmodf(t * PortLedgeScrollUnitsPerSec(), 46.0f);
+        if (units < 0.0f)
+            units += 46.0f;
+        Mtx m;
+        memset(m, 0, sizeof(m));
+        m[0][0] = 1.0f; m[0][3] = units * (0.5f / 92.0f);
+        m[1][1] = 1.0f;
+        m[2][2] = 1.0f;
+        GXLoadTexMtxImm(m, 0x1E, (_GXTexMtxType)1);
+        gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x1E);
+    }
     if (bSkySpin)
     {
         const float ang = PortSkySpinDegPerSec() * (float)glGetCurrentFrame() / 60.0f * 0.01745329252f;
@@ -2565,7 +2595,7 @@ static void glx_DrawPacket(const glModelPacket* packet)
         }
     }
 
-    if (bSkySpin)
+    if (bSkySpin || bLedgeScroll)
     {
         gxSetTexCoordGen(0, (_GXTexGenType)1, (_GXTexGenSrc)4, 0x3C);
     }
