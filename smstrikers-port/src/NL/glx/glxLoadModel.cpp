@@ -1350,10 +1350,12 @@ static void PortForbiddenFloor(glModel* pModel)
 }
 
 
-// PORT (mod): the Forbidden Dome ledge in front of the box seats (forbidden_dome/upper_rim_02 and _03) is remapped so its front face
-// shows ONE long flat picture (u runs along the whole ledge, v runs top to bottom of the front face). The picture is the otherwise
-// unused texture handle 0xd4ec33a1 (tex1_512x512_m_ce8f786f15e04a0b_14.png), so a texture pack can replace it with any size.
+// PORT (mod): the Forbidden Dome ledge in front of the box seats (forbidden_dome/upper_rim_02 and _03) is rebuilt as one flat
+// LED board: the sloped top face becomes level, the undercut lower face becomes a vertical plane flush with the upper one, and the
+// board is made taller (STRIKERS_FD_LEDGE_DROP extra units, default 1.0). Its front face shows ONE long picture (u along the whole
+// ledge, v top to bottom): the otherwise unused texture handle 0xd4ec33a1 (tex1_512x512_m_ce8f786f15e04a0b_14.png), any size.
 // STRIKERS_FD_LEDGE=0 keeps the stock skull frieze.
+static void PortStoreBEF32(u8* q, float f);
 static void PortForbiddenLedge(glModel* pModel)
 {
     static const char* sOff = getenv("STRIKERS_FD_LEDGE");
@@ -1363,6 +1365,8 @@ static void PortForbiddenLedge(glModel* pModel)
     const bool b3 = nlStringLowerHash("forbidden_dome/upper_rim_03") == pModel->id;
     if (!b2 && !b3)
         return;
+    static const char* sDrop = getenv("STRIKERS_FD_LEDGE_DROP");
+    const float drop = (sDrop != NULL && sDrop[0] != 0) ? (float)atof(sDrop) : 1.0f;
     int done = 0, verts = 0;
     for (int k = 0; k < (int)pModel->numPackets && k < 8; k++)
     {
@@ -1383,6 +1387,8 @@ static void PortForbiddenLedge(glModel* pModel)
             continue;
         const u16* idx = (const u16*)p->indexBuffer;
         std::vector<unsigned char> seen(65536, 0);
+        std::vector<int> ids;
+        std::vector<float> X, Y, Z;
         for (int i = 0; i < (int)p->numVertices; i++)
         {
             if (seen[idx[i]])
@@ -1402,26 +1408,71 @@ static void PortForbiddenLedge(glModel* pModel)
                 y = (float)(s16)port_be16(pv + 2) / 256.0f;
                 z = (float)(s16)port_be16(pv + 4) / 256.0f;
             }
+            ids.push_back(idx[i]);
+            X.push_back(x); Y.push_back(y); Z.push_back(z);
+        }
+        const size_t n = ids.size();
+        std::vector<float> nx(X), ny(Y), nz(Z);
+        for (size_t a2 = 0; a2 < n; a2++)
+        {
+            if (Z[a2] > 0.15f && Z[a2] < 0.5f)
+            {
+                nz[a2] = 0.9f; // the sloped top face becomes level
+            }
+            else if (Z[a2] < -0.5f)
+            {
+                // the undercut lower edge moves straight down from the upper edge (nearest vertex at z = -0.1)
+                float best = 1e30f;
+                size_t bi = a2;
+                for (size_t b2i = 0; b2i < n; b2i++)
+                {
+                    if (!(Z[b2i] > -0.2f && Z[b2i] < 0.05f))
+                        continue;
+                    const float dx = X[b2i] - X[a2], dy = Y[b2i] - Y[a2];
+                    const float dd = dx * dx + dy * dy;
+                    if (dd < best) { best = dd; bi = b2i; }
+                }
+                nx[a2] = X[bi]; ny[a2] = Y[bi];
+                nz[a2] = -0.9f - drop;
+            }
+        }
+        const float totalH = 1.8f + drop;
+        for (size_t a2 = 0; a2 < n; a2++)
+        {
+            const float x = nx[a2], y = ny[a2], z = nz[a2];
+            u8* pv = (u8*)pos->address + (size_t)ids[a2] * pos->stride;
+            if (pos->stride >= 12)
+            {
+                PortStoreBEF32(pv, x);
+                PortStoreBEF32(pv + 4, y);
+                PortStoreBEF32(pv + 8, z);
+            }
+            else
+            {
+                PortStoreBE16(pv, (int)floorf(x * 256.0f + 0.5f));
+                PortStoreBE16(pv + 2, (int)floorf(y * 256.0f + 0.5f));
+                PortStoreBE16(pv + 4, (int)floorf(z * 256.0f + 0.5f));
+            }
             const float yy = b3 ? -y : y;
             const float ax = fabsf(x);
-            float s = x;
+            float s2 = x;
             if (ax > 24.0f)
             {
                 const float d = sqrtf((ax - 24.0f) * (ax - 24.0f) + (yy - 9.0f) * (yy - 9.0f));
-                s = (x < 0.0f) ? -(24.0f + d) : (24.0f + d);
+                s2 = (x < 0.0f) ? -(24.0f + d) : (24.0f + d);
             }
-            float u = (s + 46.0f) / 92.0f;
-            float v = (-0.1f - z) / 0.8f;
+            float u = (s2 + 46.0f) / 92.0f;
+            float v = (0.9f - z) / totalH;
             if (u < 0.0f) u = 0.0f;
             if (u > 1.0f) u = 1.0f;
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
-            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            u8* pu = (u8*)uv->address + (size_t)ids[a2] * uv->stride;
             PortStoreBE16(pu, (int)floorf(u * 1024.0f + 0.5f));
             PortStoreBE16(pu + 2, (int)floorf(v * 1024.0f + 0.5f));
             if (col != NULL && col->stride >= 4)
             {
-                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                u8* pc = (u8*)col->address + (size_t)ids[a2] * col->stride;
                 pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
             }
             verts++;
@@ -1433,7 +1484,7 @@ static void PortForbiddenLedge(glModel* pModel)
         p->state.texture[1] = (uintptr_t)0xffffffffu;
         done++;
     }
-    fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d\n", (unsigned)pModel->id, done, verts);
+    fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d drop=%.2f\n", (unsigned)pModel->id, done, verts, drop);
 }
 
 // PORT (mod): Forbidden Dome's sky is a shallow dome (forbidden_dome/skybox_01: two halves, two 256x256 textures) plus a
