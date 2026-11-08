@@ -2750,10 +2750,17 @@ void glx_SendFrame_cb(eGLView view, unsigned long flags, const glModelPacket* p)
         flags |= 0x9FF;
         sLedgeForce = false;
     }
-    if (!sLedgeBusy && p != NULL && (flags & 0x800) && g_portLedgeActive != 0 &&
-        p->state.texture[0] == (uintptr_t)0xd4ec33a1u)
+    if (!sLedgeBusy && p != NULL && (flags & 0x800) && g_portLedgeActive != 0)
     {
+        static int sSeen = 0;
+        if (sSeen < 3)
+        {
+            sSeen++;
+            fprintf(stderr, "FDLEDGE cb p=%p flags=%03lx tex0=%p ns=%u\n", (const void*)p, (unsigned long)flags,
+                    (void*)p->state.texture[0], (unsigned)p->numStreams);
+        }
         glModelPacket* clone = PortLedgeCloneFor(p);
+        if (clone != NULL)
         {
             static int sLogN = 0;
             if (sLogN < 6)
