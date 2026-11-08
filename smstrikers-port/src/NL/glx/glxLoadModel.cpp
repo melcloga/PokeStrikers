@@ -1302,6 +1302,10 @@ static void PortWarioSky(glModel* pModel)
         float skyR = 48.0f, skyTop = 58.0f;
         if (const char* e = getenv("STRIKERS_WARIO_SKY_RADIUS")) skyR = (float)atof(e);
         if (const char* e = getenv("STRIKERS_WARIO_SKY_TOP")) skyTop = (float)atof(e);
+        // the stadium is longer along X (goal to goal) than along Y, so hug it with an ellipse instead of a circle
+        float skyRX = skyR + 3.0f, skyRY = skyR - 4.0f;
+        if (const char* e = getenv("STRIKERS_WARIO_SKY_RX")) skyRX = (float)atof(e);
+        if (const char* e = getenv("STRIKERS_WARIO_SKY_RY")) skyRY = (float)atof(e);
         const bool bShrink = skyR > 1.0f && pos != NULL && pos->stride >= 12;
         const float kOrigR = 489.56f, kZTop = 212.585f, kZBot = -260.4f, kLocalOff = -23.303f;
         const float zB = ((skyTop - kLocalOff) - (-20.0f - kLocalOff)) / (kZTop - kZBot);
@@ -1327,8 +1331,8 @@ static void PortWarioSky(glModel* pModel)
             {
                 u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
                 const float x = port_bef32(pv), y = port_bef32(pv + 4), z = port_bef32(pv + 8);
-                PortStoreBEF32(pv, x * (skyR / kOrigR));
-                PortStoreBEF32(pv + 4, y * (skyR / kOrigR));
+                PortStoreBEF32(pv, x * (skyRX / kOrigR));
+                PortStoreBEF32(pv + 4, y * (skyRY / kOrigR));
                 PortStoreBEF32(pv + 8, zA + zB * z);
             }
             u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
