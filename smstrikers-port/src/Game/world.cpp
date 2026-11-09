@@ -1071,6 +1071,43 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
         }
     }
 
+    // PORT (mod): Forbidden Dome's +x end ("temple" behind the goal) is removed and its jumbotron is made bigger and moved back.
+    // STRIKERS_FD_TEMPLE=0 keeps the temple and the stock jumbotron; STRIKERS_FD_JUMBO_SCALE / _X / _Z set the screen's size and
+    // its new centre (defaults 1.8, 36.0, 9.0).
+    {
+        static const char* sTemple = getenv("STRIKERS_FD_TEMPLE");
+        if (!(sTemple != NULL && sTemple[0] == '0'))
+        {
+            static const char* const kTemple[] = { "forbidden_dome/jewel_03","forbidden_dome/jewel_base_01","forbidden_dome/sphere31","forbidden_dome/sphere21","forbidden_dome/cylinder16","forbidden_dome/cylinder25","forbidden_dome/cylinder24","forbidden_dome/cylinder23","forbidden_dome/cylinder08","forbidden_dome/cylinder14","forbidden_dome/cylinder26","forbidden_dome/cylinder15","forbidden_dome/cylinder02","forbidden_dome/cylinder03","forbidden_dome/cylinder06","forbidden_dome/geosphere09","forbidden_dome/geosphere12","forbidden_dome/geosphere16","forbidden_dome/geosphere13","forbidden_dome/geosphere15","forbidden_dome/geosphere01","forbidden_dome/geosphere04","forbidden_dome/geosphere07","forbidden_dome/geosphere05","forbidden_dome/geosphere14","forbidden_dome/endpiece_ceiling_01","forbidden_dome/endpiece_base_01","forbidden_dome/endpiece_base_02","forbidden_dome/endpiece_floor_01","forbidden_dome/endpiece_walls_01","forbidden_dome/symbol_rim","forbidden_dome/light_beam_20","forbidden_dome/dome support22" };
+            for (size_t q = 0; q < sizeof(kTemple) / sizeof(kTemple[0]); q++)
+                if (objectData.m_uModelID == nlStringLowerHash(kTemple[q]))
+                    return;
+            static const char* const kJumbo[] = { "forbidden_dome/jumbo_screen", "forbidden_dome/jumbotron_glass",
+                                                  "forbidden_dome/jumbotron_rim", "forbidden_dome/jumbotron" };
+            for (size_t q = 0; q < sizeof(kJumbo) / sizeof(kJumbo[0]); q++)
+            {
+                if (objectData.m_uModelID != nlStringLowerHash(kJumbo[q]))
+                    continue;
+                static const char* sS = getenv("STRIKERS_FD_JUMBO_SCALE");
+                static const char* sX = getenv("STRIKERS_FD_JUMBO_X");
+                static const char* sZ = getenv("STRIKERS_FD_JUMBO_Z");
+                const float sc = (sS != NULL && sS[0] != 0) ? (float)atof(sS) : 1.8f;
+                const float cx = (sX != NULL && sX[0] != 0) ? (float)atof(sX) : 36.0f;
+                const float cz = (sZ != NULL && sZ[0] != 0) ? (float)atof(sZ) : 9.0f;
+                const float ox = 24.607f, oy = 0.018f, oz = 7.362f; // the stock screen's centre
+                nlMatrix4& wm = objectData.m_worldMatrix;
+                const float nx = cx + sc * (wm.m41 - ox), ny = oy + sc * (wm.m42 - oy), nz = cz + sc * (wm.m43 - oz);
+                wm.m11 *= sc; wm.m12 *= sc; wm.m13 *= sc;
+                wm.m21 *= sc; wm.m22 *= sc; wm.m23 *= sc;
+                wm.m31 *= sc; wm.m32 *= sc; wm.m33 *= sc;
+                wm.m41 = nx; wm.m42 = ny; wm.m43 = nz;
+                objectData.m_fRadius *= sc;
+                fprintf(stderr, "FDJUMBO model=%s scale=%.2f pos=(%.2f, %.2f, %.2f)\n", kJumbo[q], sc, nx, ny, nz);
+                break;
+            }
+        }
+    }
+
     HandleObjectCreation(&objectData);
 }
 
