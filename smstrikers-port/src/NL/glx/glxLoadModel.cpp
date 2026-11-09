@@ -1619,39 +1619,49 @@ static void PortForbiddenLedge(glModel* pModel)
 // (tex1_256x64_m_{965aa2339e81d1d8,27c1927d47420b9f,de38b96a12368e3f,ec1b3b011e0619d1}_14.png). The angled end runs are untouched.
 // STRIKERS_FD_WALL=0 keeps the boards; STRIKERS_FD_WALL_H sets the height (default 1.0), STRIKERS_FD_WALL_Y the distance from the
 // centre line (default 17.08).
+struct PortFdPanel
+{
+    int packet;                 // packet rewritten as this wall panel
+    float ax, ay, bx, by;       // panel ends in the world (a -> b), at wall height
+    float nx, ny;               // facing
+};
 struct PortFdWallModel
 {
     const char* name;
-    int quad;               // packet rewritten as the wall panel, or -1
-    unsigned hideMask;      // ad packets collapsed
-    float tx, ty, tz;       // model placement (vertices are relative to it)
-    float x0, x1;           // panel span in the world
-    float ny;               // facing: -1 = toward -y (top stand), +1 = toward +y
-    const char* corners;    // per original vertex: end (0 = x0, 1 = x1), top (0/1)
+    unsigned hideMask;          // ad packets collapsed
+    float tx, ty, tz;           // model placement (vertices are relative to it)
+    int nPanels;
+    PortFdPanel panels[2];
 };
 static const PortFdWallModel kPortFdWall[] = {
-    { "forbidden_dome/seatsleft53", 0, 0x8, -27.7793f, 20.8503f, 2.1454f, -28.70f, -2.30f, -1.0f, "01001110" },
-    { "forbidden_dome/seatsleft65", -1, 0x4, -4.0772f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft66", -1, 0x13, -10.6592f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft102", -1, 0x9, -19.0255f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft103", -1, 0x9, 4.1233f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft104", -1, 0x9, 10.7053f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft105", -1, 0x9, 19.0716f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft106", 0, 0x8, 27.8254f, 20.8503f, 2.1454f, 2.30f, 28.70f, -1.0f, "10110001" },
-    { "forbidden_dome/seatsleft109", 0, 0x12, 27.8254f, -20.7622f, 2.1454f, 2.30f, 28.70f, 1.0f, "10001101" },
-    { "forbidden_dome/seatsleft110", -1, 0x9, 19.0716f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft111", -1, 0x13, 10.7053f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft112", -1, 0x4, 4.1233f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft113", -1, 0x9, -4.0772f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft114", -1, 0x9, -10.6592f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft115", -1, 0x13, -19.0255f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
-    { "forbidden_dome/seatsleft116", 0, 0x12, -27.7793f, -20.7622f, 2.1454f, -28.70f, -2.30f, 1.0f, "10001101" },
+    { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
+    { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
+    { "forbidden_dome/seatsleft66", 0x13, -10.6592f, 20.7137f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft102", 0x9, -19.0255f, 20.7137f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft103", 0x9, 4.1233f, 20.7140f, 2.1192f, 0, {  } },
+    { "forbidden_dome/seatsleft104", 0x9, 10.7053f, 20.7137f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft105", 0x9, 19.0716f, 20.7137f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft106", 0x8, 27.8254f, 20.8503f, 2.1454f, 1, { {0,2.30f,17.08f,27.25f,17.08f,0.000f,-1.000f}, } },
+    { "forbidden_dome/seatsleft109", 0x12, 27.8254f, -20.7622f, 2.1454f, 1, { {0,2.30f,-17.08f,27.25f,-17.08f,-0.000f,1.000f}, } },
+    { "forbidden_dome/seatsleft110", 0x9, 19.0716f, -20.6256f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft111", 0x13, 10.7053f, -20.6256f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft112", 0x4, 4.1233f, -20.6259f, 2.1192f, 0, {  } },
+    { "forbidden_dome/seatsleft113", 0x9, -4.0772f, -20.6259f, 2.1192f, 0, {  } },
+    { "forbidden_dome/seatsleft114", 0x9, -10.6592f, -20.6256f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft115", 0x13, -19.0255f, -20.6256f, 2.1222f, 0, {  } },
+    { "forbidden_dome/seatsleft116", 0x12, -27.7793f, -20.7622f, 2.1454f, 1, { {0,-27.25f,-17.08f,-2.30f,-17.08f,-0.000f,1.000f}, } },
+    { "forbidden_dome/seatsleft1", 0x24, -35.3374f, 17.1370f, 2.1395f, 2, { {1,-27.25f,17.08f,-34.40f,11.90f,0.587f,-0.810f},{0,-34.40f,11.90f,-40.40f,17.03f,0.650f,0.760f}, } },
+    { "forbidden_dome/seatsleft107", 0x5, 35.3835f, 17.1370f, 2.1395f, 2, { {1,27.25f,17.08f,34.40f,11.90f,-0.587f,-0.810f},{5,34.40f,11.90f,40.40f,17.03f,-0.650f,0.760f}, } },
+    { "forbidden_dome/seatsleft108", 0x13, 35.3835f, -17.0489f, 2.1395f, 0, {  } },
+    { "forbidden_dome/seatsleft117", 0x1, -35.3374f, -17.0489f, 2.1395f, 2, { {4,-27.25f,-17.08f,-34.40f,-11.90f,0.587f,0.810f},{1,-34.40f,-11.90f,-40.40f,-17.03f,0.650f,-0.760f}, } },
+    { "forbidden_dome/object121", 0x4, 38.7623f, 13.3128f, 2.1489f, 0, {  } },
+    { "forbidden_dome/object124", 0x0, 38.7884f, -13.2205f, 2.1489f, 2, { {0,27.25f,-17.08f,34.40f,-11.90f,-0.587f,0.810f},{3,34.40f,-11.90f,40.40f,-17.03f,-0.650f,-0.760f}, } },
 };
 // The panels reach far past their board's own origin, so the world's frustum test (sphere around the object) must not drop them.
 bool PortIsFdWallModel(unsigned int id)
 {
     for (size_t q = 0; q < sizeof(kPortFdWall) / sizeof(kPortFdWall[0]); q++)
-        if (kPortFdWall[q].quad >= 0 && nlStringLowerHash(kPortFdWall[q].name) == id)
+        if (kPortFdWall[q].nPanels > 0 && nlStringLowerHash(kPortFdWall[q].name) == id)
             return true;
     return false;
 }
@@ -1667,9 +1677,10 @@ static void PortForbiddenWall(glModel* pModel)
     if (m == NULL)
         return;
     static const char* sH = getenv("STRIKERS_FD_WALL_H");
-    static const char* sY = getenv("STRIKERS_FD_WALL_Y");
+    static const char* sP = getenv("STRIKERS_FD_CORNER_PUSH");
     const float height = (sH != NULL && sH[0] != 0) ? (float)atof(sH) : 1.0f;
-    const float yAbs = (sY != NULL && sY[0] != 0) ? (float)atof(sY) : 17.08f;
+    // how far the corner's inner point is pushed out toward the stands' edge (the corner wall wraps further around)
+    const float push = (sP != NULL && sP[0] != 0) ? (float)atof(sP) : 2.0f;
     int hid = 0, made = 0;
     for (int k = 0; k < (int)pModel->numPackets && k < 31; k++)
     {
@@ -1677,15 +1688,20 @@ static void PortForbiddenWall(glModel* pModel)
         if (p->indexBuffer == 0 || p->numVertices == 0)
             continue;
         u16* idx = (u16*)p->indexBuffer;
-        if ((m->hideMask >> k) & 1u)
+        const PortFdPanel* pn = NULL;
+        for (int q = 0; q < m->nPanels; q++)
+            if (m->panels[q].packet == k)
+                pn = &m->panels[q];
+        if (pn == NULL)
         {
-            for (int i = 0; i < (int)p->numVertices; i++)
-                idx[i] = idx[0];
-            hid++;
+            if ((m->hideMask >> k) & 1u)
+            {
+                for (int i = 0; i < (int)p->numVertices; i++)
+                    idx[i] = idx[0];
+                hid++;
+            }
             continue;
         }
-        if (k != m->quad || p->numVertices != 4)
-            continue;
         const glModelStream* pos = NULL;
         const glModelStream* nrm = NULL;
         const glModelStream* col = NULL;
@@ -1699,31 +1715,56 @@ static void PortForbiddenWall(glModel* pModel)
         }
         if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
             continue;
-        const float wy = (m->ny < 0.0f) ? yAbs : -yAbs;
-        const float len = m->x1 - m->x0;
+        // four distinct vertices of the packet: a-top, a-bottom, b-top, b-bottom
+        u16 vid[4];
+        int nd = 0;
+        for (int i = 0; i < (int)p->numVertices && nd < 4; i++)
+        {
+            bool dup = false;
+            for (int j = 0; j < nd; j++)
+                if (vid[j] == idx[i]) dup = true;
+            if (!dup) vid[nd++] = idx[i];
+        }
+        if (nd < 4)
+            continue;
+        if (p->numVertices == 4)
+        {
+            for (int i = 0; i < 4; i++) idx[i] = vid[i];   // strip: a0 a1 b0 b1
+        }
+        else
+        {
+            const u16 tri[6] = { vid[0], vid[1], vid[2], vid[2], vid[1], vid[3] };
+            for (int i = 0; i < (int)p->numVertices; i++)
+                idx[i] = (i < 6) ? tri[i] : tri[0];
+        }
+        float ax = pn->ax, ay = pn->ay, bx = pn->bx, by = pn->by;
+        if (fabsf(ay) < 15.0f) ay += (ay < 0.0f ? -push : push);
+        if (fabsf(by) < 15.0f) by += (by < 0.0f ? -push : push);
+        const float dxp = bx - ax, dyp = by - ay;
+        const float len = sqrtf(dxp * dxp + dyp * dyp);
         for (int i = 0; i < 4; i++)
         {
-            const bool endB = m->corners[i * 2] == '1';
-            const bool top = m->corners[i * 2 + 1] == '1';
-            const float wx = endB ? m->x1 : m->x0;
+            const bool endB = (i >= 2);
+            const bool top = (i % 2) == 0;
+            const float wx = endB ? bx : ax, wy = endB ? by : ay;
             const float lx = wx - m->tx, ly = wy - m->ty, lz = (top ? height : 0.0f) - m->tz;
-            u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
+            u8* pv = (u8*)pos->address + (size_t)vid[i] * pos->stride;
             PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));
             PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
             PortStoreBE16(pv + 4, (int)floorf(lz * 256.0f + 0.5f));
-            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            u8* pu = (u8*)uv->address + (size_t)vid[i] * uv->stride;
             PortStoreBE16(pu, endB ? (int)floorf(len / height * 0.25f * 1024.0f + 0.5f) : 0);
             PortStoreBE16(pu + 2, top ? 0 : 1024);
             if (nrm != NULL && nrm->stride >= 3)
             {
-                u8* pn = (u8*)nrm->address + (size_t)idx[i] * nrm->stride;
-                pn[0] = 0;
-                pn[1] = (u8)(s8)floorf(m->ny * 64.0f + 0.5f);
-                pn[2] = 0;
+                u8* pnn = (u8*)nrm->address + (size_t)vid[i] * nrm->stride;
+                pnn[0] = (u8)(s8)floorf(pn->nx * 64.0f + 0.5f);
+                pnn[1] = (u8)(s8)floorf(pn->ny * 64.0f + 0.5f);
+                pnn[2] = 0;
             }
             if (col != NULL && col->stride >= 4)
             {
-                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                u8* pc = (u8*)col->address + (size_t)vid[i] * col->stride;
                 pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
             }
         }
