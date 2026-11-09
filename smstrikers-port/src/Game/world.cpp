@@ -1122,7 +1122,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
 
     // PORT (mod): Forbidden Dome's +x end gets a stand: the four lower-tier sections of the top (+y) stand and their crowds are
     // copied, turned a quarter turn and set down behind the goal, rising toward the new back wall. STRIKERS_FD_CROWD=0 turns it
-    // off; STRIKERS_FD_CROWD_X moves the copies (default 10.5: the stand's front edge lands at about x = 27.5).
+    // off; STRIKERS_FD_CROWD_X moves the copies (default 11.3: the stand's front edge lands at about x = 28.3).
     {
         static const char* sT = getenv("STRIKERS_FD_TEMPLE");
         static const char* sC = getenv("STRIKERS_FD_CROWD");
@@ -1136,7 +1136,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
             {
                 if (objectData.m_uModelID != nlStringLowerHash(kStand[q]))
                     continue;
-                const float dx = (sCX != NULL && sCX[0] != 0) ? (float)atof(sCX) : 10.5f;
+                const float dx = (sCX != NULL && sCX[0] != 0) ? (float)atof(sCX) : 11.3f;
                 WorldObjectData cl = objectData;
                 nlMatrix4& m = cl.m_worldMatrix;
                 const nlMatrix4 o = objectData.m_worldMatrix;

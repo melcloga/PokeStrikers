@@ -1638,8 +1638,8 @@ struct PortFdWallModel
     PortFdPanel panels[2];
 };
 static const PortFdWallModel kPortFdWall[] = {
-    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
-    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,11.0f,0x2383ea6au,1,1.0f}, } },
+    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,27.25f,-17.08f,27.25f,17.08f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
+    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,11.0f,0x2383ea6au,1,0.0f}, } },
     { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
     { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
     { "forbidden_dome/seatsleft66", 0x13, -10.6592f, 20.7137f, 2.1222f, 0, {  } },
@@ -1657,11 +1657,11 @@ static const PortFdWallModel kPortFdWall[] = {
     { "forbidden_dome/seatsleft115", 0x13, -19.0255f, -20.6256f, 2.1222f, 0, {  } },
     { "forbidden_dome/seatsleft116", 0x12, -27.7793f, -20.7622f, 2.1454f, 1, { {0,-27.25f,-17.08f,-2.30f,-17.08f,-0.000f,1.000f}, } },
     { "forbidden_dome/seatsleft1", 0x24, -35.3374f, 17.1370f, 2.1395f, 2, { {1,-27.25f,17.08f,-34.40f,11.90f,0.587f,-0.810f},{0,-34.40f,11.90f,-40.40f,17.03f,0.650f,0.760f}, } },
-    { "forbidden_dome/seatsleft107", 0x5, 35.3835f, 17.1370f, 2.1395f, 2, { {1,27.25f,17.08f,34.40f,11.90f,-0.587f,-0.810f},{5,34.40f,11.90f,40.40f,17.03f,-0.650f,0.760f}, } },
+    { "forbidden_dome/seatsleft107", 0x27, 35.3835f, 17.1370f, 2.1395f, 0, {  } },
     { "forbidden_dome/seatsleft108", 0x13, 35.3835f, -17.0489f, 2.1395f, 0, {  } },
     { "forbidden_dome/seatsleft117", 0x1, -35.3374f, -17.0489f, 2.1395f, 2, { {4,-27.25f,-17.08f,-34.40f,-11.90f,0.587f,0.810f},{1,-34.40f,-11.90f,-40.40f,-17.03f,0.650f,-0.760f}, } },
     { "forbidden_dome/object121", 0x4, 38.7623f, 13.3128f, 2.1489f, 0, {  } },
-    { "forbidden_dome/object124", 0x0, 38.7884f, -13.2205f, 2.1489f, 2, { {0,27.25f,-17.08f,34.40f,-11.90f,-0.587f,0.810f},{3,34.40f,-11.90f,40.40f,-17.03f,-0.650f,-0.760f}, } },
+    { "forbidden_dome/object124", 0x9, 38.7884f, -13.2205f, 2.1489f, 0, {  } },
 };
 // The panels reach far past their board's own origin, so the world's frustum test (sphere around the object) must not drop them.
 bool PortIsFdWallModel(unsigned int id)
