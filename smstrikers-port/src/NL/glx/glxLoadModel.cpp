@@ -1638,7 +1638,7 @@ struct PortFdWallModel
     PortFdPanel panels[2];
 };
 static const PortFdWallModel kPortFdWall[] = {
-    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,27.25f,-17.08f,27.25f,17.08f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
+    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,27.25f,-13.58f,27.25f,13.58f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
     { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,11.0f,0x2383ea6au,1,0.0f}, } },
     { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
     { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
@@ -1647,8 +1647,8 @@ static const PortFdWallModel kPortFdWall[] = {
     { "forbidden_dome/seatsleft103", 0x9, 4.1233f, 20.7140f, 2.1192f, 0, {  } },
     { "forbidden_dome/seatsleft104", 0x9, 10.7053f, 20.7137f, 2.1222f, 0, {  } },
     { "forbidden_dome/seatsleft105", 0x9, 19.0716f, 20.7137f, 2.1222f, 0, {  } },
-    { "forbidden_dome/seatsleft106", 0x8, 27.8254f, 20.8503f, 2.1454f, 1, { {0,2.30f,17.08f,27.25f,17.08f,0.000f,-1.000f}, } },
-    { "forbidden_dome/seatsleft109", 0x12, 27.8254f, -20.7622f, 2.1454f, 1, { {0,2.30f,-17.08f,27.25f,-17.08f,-0.000f,1.000f}, } },
+    { "forbidden_dome/seatsleft106", 0x8, 27.8254f, 20.8503f, 2.1454f, 1, { {0,2.30f,17.08f,23.75f,17.08f,0.000f,-1.000f}, } },
+    { "forbidden_dome/seatsleft109", 0x12, 27.8254f, -20.7622f, 2.1454f, 1, { {0,2.30f,-17.08f,23.75f,-17.08f,-0.000f,1.000f}, } },
     { "forbidden_dome/seatsleft110", 0x9, 19.0716f, -20.6256f, 2.1222f, 0, {  } },
     { "forbidden_dome/seatsleft111", 0x13, 10.7053f, -20.6256f, 2.1222f, 0, {  } },
     { "forbidden_dome/seatsleft112", 0x4, 4.1233f, -20.6259f, 2.1192f, 0, {  } },
@@ -1657,11 +1657,11 @@ static const PortFdWallModel kPortFdWall[] = {
     { "forbidden_dome/seatsleft115", 0x13, -19.0255f, -20.6256f, 2.1222f, 0, {  } },
     { "forbidden_dome/seatsleft116", 0x12, -27.7793f, -20.7622f, 2.1454f, 1, { {0,-27.25f,-17.08f,-2.30f,-17.08f,-0.000f,1.000f}, } },
     { "forbidden_dome/seatsleft1", 0x24, -35.3374f, 17.1370f, 2.1395f, 2, { {1,-27.25f,17.08f,-34.40f,11.90f,0.587f,-0.810f},{0,-34.40f,11.90f,-40.40f,17.03f,0.650f,0.760f}, } },
-    { "forbidden_dome/seatsleft107", 0x27, 35.3835f, 17.1370f, 2.1395f, 0, {  } },
+    { "forbidden_dome/seatsleft107", 0x25, 35.3835f, 17.1370f, 2.1395f, 1, { {1,23.75f,17.08f,27.25f,13.58f,-0.707f,-0.707f}, } },
     { "forbidden_dome/seatsleft108", 0x13, 35.3835f, -17.0489f, 2.1395f, 0, {  } },
     { "forbidden_dome/seatsleft117", 0x1, -35.3374f, -17.0489f, 2.1395f, 2, { {4,-27.25f,-17.08f,-34.40f,-11.90f,0.587f,0.810f},{1,-34.40f,-11.90f,-40.40f,-17.03f,0.650f,-0.760f}, } },
     { "forbidden_dome/object121", 0x4, 38.7623f, 13.3128f, 2.1489f, 0, {  } },
-    { "forbidden_dome/object124", 0x9, 38.7884f, -13.2205f, 2.1489f, 0, {  } },
+    { "forbidden_dome/object124", 0x8, 38.7884f, -13.2205f, 2.1489f, 1, { {0,23.75f,-17.08f,27.25f,-13.58f,-0.707f,0.707f}, } },
 };
 // The panels reach far past their board's own origin, so the world's frustum test (sphere around the object) must not drop them.
 bool PortIsFdWallModel(unsigned int id)
@@ -1744,8 +1744,8 @@ static void PortForbiddenWall(glModel* pModel)
                 idx[i] = (i < 6) ? tri[i] : tri[0];
         }
         float ax = pn->ax, ay = pn->ay, bx = pn->bx, by = pn->by;
-        if (fabsf(ay) < 15.0f) ay += (ay < 0.0f ? -push : push);
-        if (fabsf(by) < 15.0f) by += (by < 0.0f ? -push : push);
+        if (ax < 0.0f && bx < 0.0f && fabsf(ay) < 15.0f) ay += (ay < 0.0f ? -push : push);
+        if (ax < 0.0f && bx < 0.0f && fabsf(by) < 15.0f) by += (by < 0.0f ? -push : push);
         const float dxp = bx - ax, dyp = by - ay;
         const float len = sqrtf(dxp * dxp + dyp * dyp);
         float height = baseHeight;
@@ -1802,6 +1802,102 @@ static void PortForbiddenWall(glModel* pModel)
         made++;
     }
     fprintf(stderr, "FDWALL model=%08x panel=%d hidden=%d\n", (unsigned)pModel->id, made, hid);
+}
+
+// PORT (mod): Forbidden Dome's jumbotron frame. The stock casing (a helmet-shaped shell) is rewritten as a squared-off, thicker frame
+// of four flat bars around the screen, in the near-black navy of the ledge's border (a plain spot of the ledge's static texture,
+// handle 0x49ef0df6). Positions are in the stock world frame; the world code scales and moves the whole screen with the casing.
+static void PortForbiddenJumboFrame(glModel* pModel)
+{
+    static const char* sT = getenv("STRIKERS_FD_TEMPLE");
+    if (sT != NULL && sT[0] == '0')
+        return;
+    if (nlStringLowerHash("forbidden_dome/jumbotron") != pModel->id)
+        return;
+    glModelPacket* p = NULL;
+    for (int k = 0; k < (int)pModel->numPackets; k++)
+    {
+        glModelPacket* q = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        if (q->indexBuffer != 0 && q->numVertices >= 24)
+        {
+            p = q;
+            break;
+        }
+    }
+    if (p == NULL)
+        return;
+    const glModelStream* pos = NULL;
+    const glModelStream* nrm = NULL;
+    const glModelStream* col = NULL;
+    const glModelStream* uv = NULL;
+    for (int st = 0; st < (int)p->numStreams; st++)
+    {
+        if (p->streams[st].id == 0) pos = &p->streams[st];
+        else if (p->streams[st].id == 1) nrm = &p->streams[st];
+        else if (p->streams[st].id == 2) col = &p->streams[st];
+        else if (p->streams[st].id == 3) uv = &p->streams[st];
+    }
+    if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+        return;
+    u16* idx = (u16*)p->indexBuffer;
+    u16 vid[16];
+    int nd = 0;
+    for (int i = 0; i < (int)p->numVertices && nd < 16; i++)
+    {
+        bool dup = false;
+        for (int j = 0; j < nd; j++)
+            if (vid[j] == idx[i]) dup = true;
+        if (!dup) vid[nd++] = idx[i];
+    }
+    if (nd < 16)
+        return;
+    const float Tx = 27.43270f, Ty = 0.01795f, Tz = 8.61202f;   // the casing's stock placement
+    const float Cy = 0.01795f, Cz = 7.36177f;                    // the screen's stock centre
+    const float Fx = 24.40f;                                     // frame plane, a little in front of the glass
+    const float Yo = 3.10f, Zo = 1.92f, Yi = 2.45f, Zi = 1.30f;  // outer and inner half sizes (stock units)
+    // quads: top, bottom, left, right as { y0, y1, z0, z1 }
+    const float qd[4][4] = { { -Yo, Yo, Zi, Zo }, { -Yo, Yo, -Zo, -Zi }, { -Yo, -Yi, -Zi, Zi }, { Yi, Yo, -Zi, Zi } };
+    u16 tri[24];
+    for (int q = 0; q < 4; q++)
+    {
+        const u16 a = vid[q * 4], b = vid[q * 4 + 1], c = vid[q * 4 + 2], d = vid[q * 4 + 3];
+        const u16 t[6] = { a, b, c, c, b, d };
+        for (int i = 0; i < 6; i++) tri[q * 6 + i] = t[i];
+        const float ys[4] = { qd[q][0], qd[q][0], qd[q][1], qd[q][1] };
+        const float zs[4] = { qd[q][3], qd[q][2], qd[q][3], qd[q][2] };
+        for (int i = 0; i < 4; i++)
+        {
+            const u16 v = vid[q * 4 + i];
+            u8* pv = (u8*)pos->address + (size_t)v * pos->stride;
+            PortStoreBE16(pv, (int)floorf((Fx - Tx) * 256.0f + 0.5f));
+            PortStoreBE16(pv + 2, (int)floorf((Cy + ys[i] - Ty) * 256.0f + 0.5f));
+            PortStoreBE16(pv + 4, (int)floorf((Cz + zs[i] - Tz) * 256.0f + 0.5f));
+            u8* pu = (u8*)uv->address + (size_t)v * uv->stride;
+            PortStoreBE16(pu, 500);        // a plain navy spot of the static ledge texture
+            PortStoreBE16(pu + 2, 64);
+            if (nrm != NULL && nrm->stride >= 3)
+            {
+                u8* pn = (u8*)nrm->address + (size_t)v * nrm->stride;
+                pn[0] = (u8)(s8)-64; pn[1] = 0; pn[2] = 0;
+            }
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)v * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+        }
+    }
+    for (int i = 0; i < (int)p->numVertices; i++)
+        idx[i] = (i < 24) ? tri[i] : tri[0];
+    glSetRasterState(p->state.raster, GLS_Culling, 0);
+    glSetRasterState(p->state.raster, GLS_AlphaBlend, 0);
+    glSetRasterState(p->state.raster, GLS_DepthWrite, 1);
+    const bool bShadow = (p->state.texconfig & 0x04) != 0;
+    p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+    p->state.texconfig = bShadow ? 0x05 : 0x01;
+    p->state.texture[0] = (uintptr_t)0x49ef0df6u;
+    p->state.texture[1] = (uintptr_t)0xffffffffu;
+    fprintf(stderr, "FDJUMBOFRAME model=%08x\n", (unsigned)pModel->id);
 }
 
 // PORT (mod): Forbidden Dome's sky is a shallow dome (forbidden_dome/skybox_01: two halves, two 256x256 textures) plus a
@@ -2738,6 +2834,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortForbiddenSky(pModel);
                     PortForbiddenLedge(pModel);
                     PortForbiddenWall(pModel);
+                    PortForbiddenJumboFrame(pModel);
                     PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);

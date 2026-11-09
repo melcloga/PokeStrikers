@@ -1087,13 +1087,13 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
         if (!(sTemple != NULL && sTemple[0] == '0'))
         {
             static const char* const kTemple[] = { "forbidden_dome/jewel_03","forbidden_dome/jewel_base_01","forbidden_dome/sphere31","forbidden_dome/sphere21","forbidden_dome/cylinder16","forbidden_dome/cylinder25","forbidden_dome/cylinder24","forbidden_dome/cylinder23","forbidden_dome/cylinder08","forbidden_dome/cylinder14","forbidden_dome/cylinder26","forbidden_dome/cylinder15","forbidden_dome/cylinder02","forbidden_dome/cylinder03","forbidden_dome/cylinder06","forbidden_dome/geosphere09","forbidden_dome/geosphere12","forbidden_dome/geosphere16","forbidden_dome/geosphere13","forbidden_dome/geosphere15","forbidden_dome/geosphere01","forbidden_dome/geosphere04","forbidden_dome/geosphere07","forbidden_dome/geosphere05","forbidden_dome/geosphere14","forbidden_dome/endpiece_ceiling_01","forbidden_dome/endpiece_base_02","forbidden_dome/endpiece_floor_01","forbidden_dome/symbol_rim","forbidden_dome/light_beam_20","forbidden_dome/dome support22",
-                "forbidden_dome/jumbotron", "forbidden_dome/pod01", "forbidden_dome/podbits01", "forbidden_dome/cylinder11",
+                "forbidden_dome/jumbotron_rim", "forbidden_dome/pod01", "forbidden_dome/podbits01", "forbidden_dome/cylinder11",
                 "forbidden_dome/cylinder27", "forbidden_dome/centerpiece_floor_02", "forbidden_dome/cylinder09" };
             for (size_t q = 0; q < sizeof(kTemple) / sizeof(kTemple[0]); q++)
                 if (objectData.m_uModelID == nlStringLowerHash(kTemple[q]))
                     return;
             static const char* const kJumbo[] = { "forbidden_dome/jumbo_screen", "forbidden_dome/jumbotron_glass",
-                                                  "forbidden_dome/jumbotron_rim" };
+                                                  "forbidden_dome/jumbotron" };
             for (size_t q = 0; q < sizeof(kJumbo) / sizeof(kJumbo[0]); q++)
             {
                 if (objectData.m_uModelID != nlStringLowerHash(kJumbo[q]))
@@ -1130,7 +1130,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
         if (!(sT != NULL && sT[0] == '0') && !(sC != NULL && sC[0] == '0'))
         {
             static const char* const kStand[] = { "forbidden_dome/seatsleft65", "forbidden_dome/seatsleft66", "forbidden_dome/seatsleft103",
-                                                  "forbidden_dome/seatsleft104", "forbidden_dome/crowd_04", "forbidden_dome/crowd_05",
+                                                  "forbidden_dome/seatsleft104", "forbidden_dome/stairsleft13", "forbidden_dome/stairsleft19", "forbidden_dome/crowd_04", "forbidden_dome/crowd_05",
                                                   "forbidden_dome/crowd_07", "forbidden_dome/crowd_08" };
             for (size_t q = 0; q < sizeof(kStand) / sizeof(kStand[0]); q++)
             {
