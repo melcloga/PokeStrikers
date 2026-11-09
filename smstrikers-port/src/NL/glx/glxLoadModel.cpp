@@ -1857,12 +1857,14 @@ static void PortForbiddenJumboFrame(glModel* pModel)
     const float Yo = 3.10f, Zo = 1.92f, Yi = 2.45f, Zi = 1.30f;  // outer and inner half sizes (stock units)
     // quads: top, bottom, left, right as { y0, y1, z0, z1 }
     const float qd[4][4] = { { -Yo, Yo, Zi, Zo }, { -Yo, Yo, -Zo, -Zi }, { -Yo, -Yi, -Zi, Zi }, { Yi, Yo, -Zi, Zi } };
-    u16 tri[24];
+    // the packet is a triangle STRIP: four quads joined by degenerate triangles (last vertex and next first vertex repeated)
+    u16 tri[22];
+    int nt = 0;
     for (int q = 0; q < 4; q++)
     {
         const u16 a = vid[q * 4], b = vid[q * 4 + 1], c = vid[q * 4 + 2], d = vid[q * 4 + 3];
-        const u16 t[6] = { a, b, c, c, b, d };
-        for (int i = 0; i < 6; i++) tri[q * 6 + i] = t[i];
+        if (q > 0) { tri[nt++] = vid[q * 4 - 1]; tri[nt++] = a; }
+        tri[nt++] = a; tri[nt++] = b; tri[nt++] = c; tri[nt++] = d;
         const float ys[4] = { qd[q][0], qd[q][0], qd[q][1], qd[q][1] };
         const float zs[4] = { qd[q][3], qd[q][2], qd[q][3], qd[q][2] };
         for (int i = 0; i < 4; i++)
@@ -1888,7 +1890,7 @@ static void PortForbiddenJumboFrame(glModel* pModel)
         }
     }
     for (int i = 0; i < (int)p->numVertices; i++)
-        idx[i] = (i < 24) ? tri[i] : tri[0];
+        idx[i] = (i < nt) ? tri[i] : tri[nt - 1];
     glSetRasterState(p->state.raster, GLS_Culling, 0);
     glSetRasterState(p->state.raster, GLS_AlphaBlend, 0);
     glSetRasterState(p->state.raster, GLS_DepthWrite, 1);
