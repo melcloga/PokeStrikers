@@ -1119,6 +1119,38 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
     }
 
     HandleObjectCreation(&objectData);
+
+    // PORT (mod): Forbidden Dome's +x end gets a stand: the four lower-tier sections of the top (+y) stand and their crowds are
+    // copied, turned a quarter turn and set down behind the goal, rising toward the new back wall. STRIKERS_FD_CROWD=0 turns it
+    // off; STRIKERS_FD_CROWD_X moves the copies (default 10.5: the stand's front edge lands at about x = 27.5).
+    {
+        static const char* sT = getenv("STRIKERS_FD_TEMPLE");
+        static const char* sC = getenv("STRIKERS_FD_CROWD");
+        static const char* sCX = getenv("STRIKERS_FD_CROWD_X");
+        if (!(sT != NULL && sT[0] == '0') && !(sC != NULL && sC[0] == '0'))
+        {
+            static const char* const kStand[] = { "forbidden_dome/seatsleft65", "forbidden_dome/seatsleft66", "forbidden_dome/seatsleft103",
+                                                  "forbidden_dome/seatsleft104", "forbidden_dome/crowd_04", "forbidden_dome/crowd_05",
+                                                  "forbidden_dome/crowd_07", "forbidden_dome/crowd_08" };
+            for (size_t q = 0; q < sizeof(kStand) / sizeof(kStand[0]); q++)
+            {
+                if (objectData.m_uModelID != nlStringLowerHash(kStand[q]))
+                    continue;
+                const float dx = (sCX != NULL && sCX[0] != 0) ? (float)atof(sCX) : 10.5f;
+                WorldObjectData cl = objectData;
+                nlMatrix4& m = cl.m_worldMatrix;
+                const nlMatrix4 o = objectData.m_worldMatrix;
+                m.m11 = o.m12; m.m12 = -o.m11; m.m13 = o.m13;
+                m.m21 = o.m22; m.m22 = -o.m21; m.m23 = o.m23;
+                m.m31 = o.m32; m.m32 = -o.m31; m.m33 = o.m33;
+                m.m41 = o.m42 + dx; m.m42 = -o.m41; m.m43 = o.m43;
+                cl.m_uHashID = objectData.m_uHashID * 31u + 0x5a17u;
+                fprintf(stderr, "FDCROWD clone %s -> (%.1f, %.1f, %.1f)\n", kStand[q], m.m41, m.m42, m.m43);
+                HandleObjectCreation(&cl);
+                break;
+            }
+        }
+    }
 }
 
 /**
