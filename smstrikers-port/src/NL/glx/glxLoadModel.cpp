@@ -1616,7 +1616,7 @@ static void PortForbiddenLedge(glModel* pModel)
 // is replaced by one straight, plain wall: twelve of the boards' face quads are rewritten as long vertical panels (the long sides
 // at |y| = 14, a chamfered corner and a short end run per quadrant, the tunnel mouths at x = +-2.1 left open, the stair gaps
 // closed) and every other board packet is collapsed. The panels use the otherwise unused texture handle 0x99a043af
-// (tex1_256x256_m_54b518705ecac4ae_14.png, any size) so a texture pack can dress the wall. STRIKERS_WARIO_WALL=0 keeps the boards;
+// (tex1_256x256_m_54b518705ecac4ae_14.png, any size) so a texture pack can dress the wall. off unless STRIKERS_WARIO_WALL=1 (ini: wario_wall = 1);
 // STRIKERS_WARIO_WALL_H sets the height (default 1.2).
 struct PortWallSeg
 {
@@ -1642,7 +1642,7 @@ static const PortWallSeg kPortWallSegs[] = {
 static void PortWarioWall(glModel* pModel)
 {
     static const char* sOn = getenv("STRIKERS_WARIO_WALL");
-    if (sOn != NULL && sOn[0] == '0')
+    if (sOn == NULL || sOn[0] != '1')
         return;
     bool isBoard = false;
     for (int n = 1; n <= 60 && !isBoard; n++)
