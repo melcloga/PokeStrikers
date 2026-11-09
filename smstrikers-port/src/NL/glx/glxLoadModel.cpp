@@ -1626,6 +1626,8 @@ struct PortFdPanel
     float nx, ny;               // facing
     float h;                    // wall height (0 = the default 1.0); the texture tile is 4 wide and 1 high, repeated
     unsigned tex;               // texture handle to give the packet (0 = keep the packet's own)
+    int flat;                   // 1 = one flat colour: every vertex gets the same spot of the texture (a plain dark patch)
+    float z0;                   // bottom of the panel (h is the top)
 };
 struct PortFdWallModel
 {
@@ -1636,7 +1638,8 @@ struct PortFdWallModel
     PortFdPanel panels[2];
 };
 static const PortFdWallModel kPortFdWall[] = {
-    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2260f, -0.0020f, 1.5440f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,11.0f,0x2383ea6au}, } },
+    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
+    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,11.0f,0x2383ea6au,1,1.0f}, } },
     { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
     { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
     { "forbidden_dome/seatsleft66", 0x13, -10.6592f, 20.7137f, 2.1222f, 0, {  } },
@@ -1748,22 +1751,30 @@ static void PortForbiddenWall(glModel* pModel)
         float height = baseHeight;
         if (pn->h > 0.0f)
         {
-            static const char* sEH = getenv("STRIKERS_FD_ENDWALL_H");
-            height = (sEH != NULL && sEH[0] != 0) ? (float)atof(sEH) : pn->h;
+            static const char* sEH = getenv("STRIKERS_FD_ENDWALL_H"); // top of the plain upper wall
+            height = (pn->flat && sEH != NULL && sEH[0] != 0) ? (float)atof(sEH) : pn->h;
         }
         for (int i = 0; i < 4; i++)
         {
             const bool endB = (i >= 2);
             const bool top = (i % 2) == 0;
             const float wx = endB ? bx : ax, wy = endB ? by : ay;
-            const float lx = wx - m->tx, ly = wy - m->ty, lz = (top ? height : 0.0f) - m->tz;
+            const float lx = wx - m->tx, ly = wy - m->ty, lz = (top ? height : pn->z0) - m->tz;
             u8* pv = (u8*)pos->address + (size_t)vid[i] * pos->stride;
             PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));
             PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
             PortStoreBE16(pv + 4, (int)floorf(lz * 256.0f + 0.5f));
             u8* pu = (u8*)uv->address + (size_t)vid[i] * uv->stride;
-            PortStoreBE16(pu, endB ? (int)floorf(len * 0.25f * 1024.0f + 0.5f) : 0);
-            PortStoreBE16(pu + 2, top ? 0 : (int)floorf(height * 1024.0f + 0.5f));
+            if (pn->flat)
+            {
+                PortStoreBE16(pu, 284);    // a plain patch of the pattern texture's dark background
+                PortStoreBE16(pu + 2, 340);
+            }
+            else
+            {
+                PortStoreBE16(pu, endB ? (int)floorf(len * 0.25f * 1024.0f + 0.5f) : 0);
+                PortStoreBE16(pu + 2, top ? 0 : (int)floorf((height - pn->z0) * 1024.0f + 0.5f));
+            }
             if (nrm != NULL && nrm->stride >= 3)
             {
                 u8* pnn = (u8*)nrm->address + (size_t)vid[i] * nrm->stride;
