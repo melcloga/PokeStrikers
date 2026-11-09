@@ -354,6 +354,13 @@ bool World::LoadGeometry(glModel* gModel, unsigned long uNumModels, bool bMakeDr
             pObject->GetAABBDimensions(aabb, false);
 
             pObject->m_fBoundingRadius = World_SelectBoundingRadius(aabb);
+            {
+                // PORT (mod): Forbidden Dome's rewritten wall panels are far longer than the board they came from
+                extern bool PortIsFdWallModel(unsigned int id);
+                DrawableModel* pWallModel = pObject->AsDrawableModel();
+                if (pWallModel != NULL && pWallModel->m_pModel != NULL && PortIsFdWallModel(pWallModel->m_pModel->id))
+                    pObject->m_fBoundingRadius = 45.0f;
+            }
 
             if (pDrawableObjectHashes != NULL)
             {

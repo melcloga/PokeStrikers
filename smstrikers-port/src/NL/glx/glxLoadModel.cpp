@@ -1647,6 +1647,14 @@ static const PortFdWallModel kPortFdWall[] = {
     { "forbidden_dome/seatsleft115", -1, 0x13, -19.0255f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
     { "forbidden_dome/seatsleft116", 0, 0x12, -27.7793f, -20.7622f, 2.1454f, -28.70f, -2.30f, 1.0f, "10001101" },
 };
+// The panels reach far past their board's own origin, so the world's frustum test (sphere around the object) must not drop them.
+bool PortIsFdWallModel(unsigned int id)
+{
+    for (size_t q = 0; q < sizeof(kPortFdWall) / sizeof(kPortFdWall[0]); q++)
+        if (kPortFdWall[q].quad >= 0 && nlStringLowerHash(kPortFdWall[q].name) == id)
+            return true;
+    return false;
+}
 static void PortForbiddenWall(glModel* pModel)
 {
     static const char* sOn = getenv("STRIKERS_FD_WALL");
