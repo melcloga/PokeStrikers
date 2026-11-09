@@ -938,6 +938,14 @@ void World::CreateHelperObjFromChunk(nlChunk* chunk)
 void World::CreateEmitterObjFromChunk(nlChunk* pChunk)
 {
     WorldEmitterChunkData* pEmitterData;
+    // PORT (mod): the two flame glows that sat under Forbidden Dome's old jumbotron (STRIKERS_FD_TEMPLE=0 keeps them)
+    {
+        static const char* sT = getenv("STRIKERS_FD_TEMPLE");
+        const WorldEmitterChunkData* pE = (const WorldEmitterChunkData*)pChunk->GetData();
+        if (!(sT != NULL && sT[0] == '0') && strstr(pE->m_szName, "forbidden_dome/fx_persistent_emitter_glow") != NULL)
+            return;
+    }
+
     const char* pPersistentEffectsTag;
     char fxName[256];
     int i;
@@ -1073,12 +1081,12 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
 
     // PORT (mod): Forbidden Dome's +x end ("temple" behind the goal) is removed and its jumbotron is made bigger and moved back.
     // STRIKERS_FD_TEMPLE=0 keeps the temple and the stock jumbotron; STRIKERS_FD_JUMBO_SCALE / _X / _Z set the screen's size and
-    // its new centre (defaults 1.8, 36.0, 9.0).
+    // its new centre (defaults 1.8, 39.9, 9.0).
     {
         static const char* sTemple = getenv("STRIKERS_FD_TEMPLE");
         if (!(sTemple != NULL && sTemple[0] == '0'))
         {
-            static const char* const kTemple[] = { "forbidden_dome/jewel_03","forbidden_dome/jewel_base_01","forbidden_dome/sphere31","forbidden_dome/sphere21","forbidden_dome/cylinder16","forbidden_dome/cylinder25","forbidden_dome/cylinder24","forbidden_dome/cylinder23","forbidden_dome/cylinder08","forbidden_dome/cylinder14","forbidden_dome/cylinder26","forbidden_dome/cylinder15","forbidden_dome/cylinder02","forbidden_dome/cylinder03","forbidden_dome/cylinder06","forbidden_dome/geosphere09","forbidden_dome/geosphere12","forbidden_dome/geosphere16","forbidden_dome/geosphere13","forbidden_dome/geosphere15","forbidden_dome/geosphere01","forbidden_dome/geosphere04","forbidden_dome/geosphere07","forbidden_dome/geosphere05","forbidden_dome/geosphere14","forbidden_dome/endpiece_ceiling_01","forbidden_dome/endpiece_base_01","forbidden_dome/endpiece_base_02","forbidden_dome/endpiece_floor_01","forbidden_dome/endpiece_walls_01","forbidden_dome/symbol_rim","forbidden_dome/light_beam_20","forbidden_dome/dome support22",
+            static const char* const kTemple[] = { "forbidden_dome/jewel_03","forbidden_dome/jewel_base_01","forbidden_dome/sphere31","forbidden_dome/sphere21","forbidden_dome/cylinder16","forbidden_dome/cylinder25","forbidden_dome/cylinder24","forbidden_dome/cylinder23","forbidden_dome/cylinder08","forbidden_dome/cylinder14","forbidden_dome/cylinder26","forbidden_dome/cylinder15","forbidden_dome/cylinder02","forbidden_dome/cylinder03","forbidden_dome/cylinder06","forbidden_dome/geosphere09","forbidden_dome/geosphere12","forbidden_dome/geosphere16","forbidden_dome/geosphere13","forbidden_dome/geosphere15","forbidden_dome/geosphere01","forbidden_dome/geosphere04","forbidden_dome/geosphere07","forbidden_dome/geosphere05","forbidden_dome/geosphere14","forbidden_dome/endpiece_ceiling_01","forbidden_dome/endpiece_base_01","forbidden_dome/endpiece_base_02","forbidden_dome/endpiece_floor_01","forbidden_dome/symbol_rim","forbidden_dome/light_beam_20","forbidden_dome/dome support22",
                 "forbidden_dome/jumbotron", "forbidden_dome/pod01", "forbidden_dome/podbits01", "forbidden_dome/cylinder11",
                 "forbidden_dome/cylinder27", "forbidden_dome/centerpiece_floor_02", "forbidden_dome/cylinder09" };
             for (size_t q = 0; q < sizeof(kTemple) / sizeof(kTemple[0]); q++)
@@ -1094,7 +1102,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
                 static const char* sX = getenv("STRIKERS_FD_JUMBO_X");
                 static const char* sZ = getenv("STRIKERS_FD_JUMBO_Z");
                 const float sc = (sS != NULL && sS[0] != 0) ? (float)atof(sS) : 1.8f;
-                const float cx = (sX != NULL && sX[0] != 0) ? (float)atof(sX) : 36.0f;
+                const float cx = (sX != NULL && sX[0] != 0) ? (float)atof(sX) : 39.9f;
                 const float cz = (sZ != NULL && sZ[0] != 0) ? (float)atof(sZ) : 9.0f;
                 const float ox = 24.607f, oy = 0.018f, oz = 7.362f; // the stock screen's centre
                 nlMatrix4& wm = objectData.m_worldMatrix;

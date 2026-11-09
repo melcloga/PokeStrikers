@@ -1624,6 +1624,8 @@ struct PortFdPanel
     int packet;                 // packet rewritten as this wall panel
     float ax, ay, bx, by;       // panel ends in the world (a -> b), at wall height
     float nx, ny;               // facing
+    float h;                    // wall height (0 = the default 1.0); the texture tile is 4 wide and 1 high, repeated
+    unsigned tex;               // texture handle to give the packet (0 = keep the packet's own)
 };
 struct PortFdWallModel
 {
@@ -1634,6 +1636,7 @@ struct PortFdWallModel
     PortFdPanel panels[2];
 };
 static const PortFdWallModel kPortFdWall[] = {
+    { "forbidden_dome/endpiece_walls_01", 0x0, 44.2260f, -0.0020f, 1.5440f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,11.0f,0x2383ea6au}, } },
     { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
     { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
     { "forbidden_dome/seatsleft66", 0x13, -10.6592f, 20.7137f, 2.1222f, 0, {  } },
@@ -1678,7 +1681,7 @@ static void PortForbiddenWall(glModel* pModel)
         return;
     static const char* sH = getenv("STRIKERS_FD_WALL_H");
     static const char* sP = getenv("STRIKERS_FD_CORNER_PUSH");
-    const float height = (sH != NULL && sH[0] != 0) ? (float)atof(sH) : 1.0f;
+    const float baseHeight = (sH != NULL && sH[0] != 0) ? (float)atof(sH) : 1.0f;
     // corner inner point offset in y (negative = toward the pitch, away from the crowd)
     const float push = (sP != NULL && sP[0] != 0) ? (float)atof(sP) : -2.5f;
     int hid = 0, made = 0;
@@ -1742,6 +1745,12 @@ static void PortForbiddenWall(glModel* pModel)
         if (fabsf(by) < 15.0f) by += (by < 0.0f ? -push : push);
         const float dxp = bx - ax, dyp = by - ay;
         const float len = sqrtf(dxp * dxp + dyp * dyp);
+        float height = baseHeight;
+        if (pn->h > 0.0f)
+        {
+            static const char* sEH = getenv("STRIKERS_FD_ENDWALL_H");
+            height = (sEH != NULL && sEH[0] != 0) ? (float)atof(sEH) : pn->h;
+        }
         for (int i = 0; i < 4; i++)
         {
             const bool endB = (i >= 2);
@@ -1753,8 +1762,8 @@ static void PortForbiddenWall(glModel* pModel)
             PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
             PortStoreBE16(pv + 4, (int)floorf(lz * 256.0f + 0.5f));
             u8* pu = (u8*)uv->address + (size_t)vid[i] * uv->stride;
-            PortStoreBE16(pu, endB ? (int)floorf(len / height * 0.25f * 1024.0f + 0.5f) : 0);
-            PortStoreBE16(pu + 2, top ? 0 : 1024);
+            PortStoreBE16(pu, endB ? (int)floorf(len * 0.25f * 1024.0f + 0.5f) : 0);
+            PortStoreBE16(pu + 2, top ? 0 : (int)floorf(height * 1024.0f + 0.5f));
             if (nrm != NULL && nrm->stride >= 3)
             {
                 u8* pnn = (u8*)nrm->address + (size_t)vid[i] * nrm->stride;
@@ -1769,6 +1778,16 @@ static void PortForbiddenWall(glModel* pModel)
             }
         }
         glSetRasterState(p->state.raster, GLS_Culling, 0);
+        if (pn->tex != 0)
+        {
+            const bool bShadow = (p->state.texconfig & 0x04) != 0;
+            p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+            p->state.texconfig = bShadow ? 0x05 : 0x01;
+            p->state.texture[0] = (uintptr_t)pn->tex;
+            p->state.texture[1] = (uintptr_t)0xffffffffu;
+            glSetRasterState(p->state.raster, GLS_AlphaBlend, 0);
+            glSetRasterState(p->state.raster, GLS_DepthWrite, 1);
+        }
         made++;
     }
     fprintf(stderr, "FDWALL model=%08x panel=%d hidden=%d\n", (unsigned)pModel->id, made, hid);
