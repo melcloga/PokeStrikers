@@ -1630,22 +1630,22 @@ struct PortFdWallModel
     const char* corners;    // per original vertex: end (0 = x0, 1 = x1), top (0/1)
 };
 static const PortFdWallModel kPortFdWall[] = {
-    { "forbidden_dome/seatsleft53", 0, 0x8, -27.7793f, 20.8503f, 2.1454f, -28.70f, -2.30f, -1f, "01001110" },
-    { "forbidden_dome/seatsleft65", -1, 0x4, -4.0772f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft66", -1, 0x13, -10.6592f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft102", -1, 0x9, -19.0255f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft103", -1, 0x9, 4.1233f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft104", -1, 0x9, 10.7053f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft105", -1, 0x9, 19.0716f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft106", 0, 0x8, 27.8254f, 20.8503f, 2.1454f, 2.30f, 28.70f, -1f, "10110001" },
-    { "forbidden_dome/seatsleft109", 0, 0x12, 27.8254f, -20.7622f, 2.1454f, 2.30f, 28.70f, 1f, "10001101" },
-    { "forbidden_dome/seatsleft110", -1, 0x9, 19.0716f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft111", -1, 0x13, 10.7053f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft112", -1, 0x4, 4.1233f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft113", -1, 0x9, -4.0772f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft114", -1, 0x9, -10.6592f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft115", -1, 0x13, -19.0255f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
-    { "forbidden_dome/seatsleft116", 0, 0x12, -27.7793f, -20.7622f, 2.1454f, -28.70f, -2.30f, 1f, "10001101" },
+    { "forbidden_dome/seatsleft53", 0, 0x8, -27.7793f, 20.8503f, 2.1454f, -28.70f, -2.30f, -1.0f, "01001110" },
+    { "forbidden_dome/seatsleft65", -1, 0x4, -4.0772f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft66", -1, 0x13, -10.6592f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft102", -1, 0x9, -19.0255f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft103", -1, 0x9, 4.1233f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft104", -1, 0x9, 10.7053f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft105", -1, 0x9, 19.0716f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft106", 0, 0x8, 27.8254f, 20.8503f, 2.1454f, 2.30f, 28.70f, -1.0f, "10110001" },
+    { "forbidden_dome/seatsleft109", 0, 0x12, 27.8254f, -20.7622f, 2.1454f, 2.30f, 28.70f, 1.0f, "10001101" },
+    { "forbidden_dome/seatsleft110", -1, 0x9, 19.0716f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft111", -1, 0x13, 10.7053f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft112", -1, 0x4, 4.1233f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft113", -1, 0x9, -4.0772f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft114", -1, 0x9, -10.6592f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft115", -1, 0x13, -19.0255f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0.0f, "0000" },
+    { "forbidden_dome/seatsleft116", 0, 0x12, -27.7793f, -20.7622f, 2.1454f, -28.70f, -2.30f, 1.0f, "10001101" },
 };
 static void PortForbiddenWall(glModel* pModel)
 {
