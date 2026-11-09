@@ -467,6 +467,13 @@ u8 World::HandleObjectCreation(WorldObjectData* pObjectData)
     pDrawable->m_uRenderLayer = pData->m_uRenderLayer;
     pDrawable->m_worldMatrix = pData->m_worldMatrix;
     pDrawable->m_fBoundingRadius = pData->m_fRadius;
+    {
+        // PORT (mod): Forbidden Dome's rewritten wall panels are far longer than the board they came from, so the radius the
+        // world file gave them (this is the path every placed object takes) would let the frustum test drop them early
+        extern bool PortIsFdWallModel(unsigned int id);
+        if (pModel != NULL && PortIsFdWallModel(pModel->id))
+            pDrawable->m_fBoundingRadius = 45.0f;
+    }
 
     m_drawableMap.Add(pDrawable->m_uHashID, pDrawable);
     return 1;
