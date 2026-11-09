@@ -1679,8 +1679,8 @@ static void PortForbiddenWall(glModel* pModel)
     static const char* sH = getenv("STRIKERS_FD_WALL_H");
     static const char* sP = getenv("STRIKERS_FD_CORNER_PUSH");
     const float height = (sH != NULL && sH[0] != 0) ? (float)atof(sH) : 1.0f;
-    // how far the corner's inner point is pushed out toward the stands' edge (the corner wall wraps further around)
-    const float push = (sP != NULL && sP[0] != 0) ? (float)atof(sP) : 2.0f;
+    // corner inner point offset in y (negative = toward the pitch, away from the crowd)
+    const float push = (sP != NULL && sP[0] != 0) ? (float)atof(sP) : -2.5f;
     int hid = 0, made = 0;
     for (int k = 0; k < (int)pModel->numPackets && k < 31; k++)
     {
