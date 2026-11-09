@@ -92,7 +92,13 @@ jobs:
         if: runner.os != 'Linux'
         working-directory: smstrikers-port
         shell: bash
-        run: ./tools/configure.sh build-aur Release
+        # downloads of prebuilt dependencies sometimes 504; retry the configure a few times
+        run: |
+          for i in 1 2 3 4; do
+            ./tools/configure.sh build-aur Release && exit 0
+            echo "configure failed (attempt $i), retrying in 20s"; sleep 20
+          done
+          exit 1
 
       - name: Build
         if: runner.os != 'Linux'
