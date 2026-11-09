@@ -450,7 +450,10 @@ add_library(strikers_monocypher OBJECT "${MONOCYPHER_SRC}/monocypher.c")
 # miniupnpc opens a hosted room's port; its own CMakeLists would also build tests and a DLL.
 if(NOT NX AND NOT WINDOWS_STORE)
     FetchContent_Declare(miniupnpc
+        # the upstream host is sometimes down (504); the hash is checked whichever mirror answers
         URL https://miniupnp.tuxfamily.org/files/miniupnpc-2.3.3.tar.gz
+            https://sources.buildroot.net/miniupnpc/miniupnpc-2.3.3.tar.gz
+            https://deb.debian.org/debian/pool/main/m/miniupnpc/miniupnpc_2.3.3.orig.tar.gz
         URL_HASH SHA256=d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e634bd1a
         DOWNLOAD_EXTRACT_TIMESTAMP FALSE
         SOURCE_SUBDIR no-cmake
