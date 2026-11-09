@@ -1612,6 +1612,119 @@ static void PortForbiddenLedge(glModel* pModel)
     fprintf(stderr, "FDLEDGE model=%08x packets=%d verts=%d drop=%.2f\n", (unsigned)pModel->id, done, verts, drop);
 }
 
+// PORT (mod): Forbidden Dome's low ring of ad boards along both stands (the ad-textured packets of the seatsleft blocks) becomes one
+// straight plain wall on the long sides: four of the boards' face quads are rewritten as long vertical panels (x -28.7..-2.3 and
+// 2.3..28.7 at |y| = 17.08, the tunnel mouths at x = +-2.3 left open, the stair gaps closed) and every other side-board packet is
+// collapsed. The panels keep their quad's ad texture handle, so pair this with plain replacement textures for the four ad images
+// (tex1_256x64_m_{965aa2339e81d1d8,27c1927d47420b9f,de38b96a12368e3f,ec1b3b011e0619d1}_14.png). The angled end runs are untouched.
+// STRIKERS_FD_WALL=0 keeps the boards; STRIKERS_FD_WALL_H sets the height (default 1.0), STRIKERS_FD_WALL_Y the distance from the
+// centre line (default 17.08).
+struct PortFdWallModel
+{
+    const char* name;
+    int quad;               // packet rewritten as the wall panel, or -1
+    unsigned hideMask;      // ad packets collapsed
+    float tx, ty, tz;       // model placement (vertices are relative to it)
+    float x0, x1;           // panel span in the world
+    float ny;               // facing: -1 = toward -y (top stand), +1 = toward +y
+    const char* corners;    // per original vertex: end (0 = x0, 1 = x1), top (0/1)
+};
+static const PortFdWallModel kPortFdWall[] = {
+    { "forbidden_dome/seatsleft53", 0, 0x8, -27.7793f, 20.8503f, 2.1454f, -28.70f, -2.30f, -1f, "01001110" },
+    { "forbidden_dome/seatsleft65", -1, 0x4, -4.0772f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft66", -1, 0x13, -10.6592f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft102", -1, 0x9, -19.0255f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft103", -1, 0x9, 4.1233f, 20.7140f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft104", -1, 0x9, 10.7053f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft105", -1, 0x9, 19.0716f, 20.7137f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft106", 0, 0x8, 27.8254f, 20.8503f, 2.1454f, 2.30f, 28.70f, -1f, "10110001" },
+    { "forbidden_dome/seatsleft109", 0, 0x12, 27.8254f, -20.7622f, 2.1454f, 2.30f, 28.70f, 1f, "10001101" },
+    { "forbidden_dome/seatsleft110", -1, 0x9, 19.0716f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft111", -1, 0x13, 10.7053f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft112", -1, 0x4, 4.1233f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft113", -1, 0x9, -4.0772f, -20.6259f, 2.1192f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft114", -1, 0x9, -10.6592f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft115", -1, 0x13, -19.0255f, -20.6256f, 2.1222f, 0.00f, 0.00f, 0f, "0000" },
+    { "forbidden_dome/seatsleft116", 0, 0x12, -27.7793f, -20.7622f, 2.1454f, -28.70f, -2.30f, 1f, "10001101" },
+};
+static void PortForbiddenWall(glModel* pModel)
+{
+    static const char* sOn = getenv("STRIKERS_FD_WALL");
+    if (sOn != NULL && sOn[0] == '0')
+        return;
+    const PortFdWallModel* m = NULL;
+    for (size_t q = 0; q < sizeof(kPortFdWall) / sizeof(kPortFdWall[0]); q++)
+        if (nlStringLowerHash(kPortFdWall[q].name) == pModel->id)
+            m = &kPortFdWall[q];
+    if (m == NULL)
+        return;
+    static const char* sH = getenv("STRIKERS_FD_WALL_H");
+    static const char* sY = getenv("STRIKERS_FD_WALL_Y");
+    const float height = (sH != NULL && sH[0] != 0) ? (float)atof(sH) : 1.0f;
+    const float yAbs = (sY != NULL && sY[0] != 0) ? (float)atof(sY) : 17.08f;
+    int hid = 0, made = 0;
+    for (int k = 0; k < (int)pModel->numPackets && k < 31; k++)
+    {
+        glModelPacket* p = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
+        if (p->indexBuffer == 0 || p->numVertices == 0)
+            continue;
+        u16* idx = (u16*)p->indexBuffer;
+        if ((m->hideMask >> k) & 1u)
+        {
+            for (int i = 0; i < (int)p->numVertices; i++)
+                idx[i] = idx[0];
+            hid++;
+            continue;
+        }
+        if (k != m->quad || p->numVertices != 4)
+            continue;
+        const glModelStream* pos = NULL;
+        const glModelStream* nrm = NULL;
+        const glModelStream* col = NULL;
+        const glModelStream* uv = NULL;
+        for (int st = 0; st < (int)p->numStreams; st++)
+        {
+            if (p->streams[st].id == 0) pos = &p->streams[st];
+            else if (p->streams[st].id == 1) nrm = &p->streams[st];
+            else if (p->streams[st].id == 2) col = &p->streams[st];
+            else if (p->streams[st].id == 3) uv = &p->streams[st];
+        }
+        if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
+            continue;
+        const float wy = (m->ny < 0.0f) ? yAbs : -yAbs;
+        const float len = m->x1 - m->x0;
+        for (int i = 0; i < 4; i++)
+        {
+            const bool endB = m->corners[i * 2] == '1';
+            const bool top = m->corners[i * 2 + 1] == '1';
+            const float wx = endB ? m->x1 : m->x0;
+            const float lx = wx - m->tx, ly = wy - m->ty, lz = (top ? height : 0.0f) - m->tz;
+            u8* pv = (u8*)pos->address + (size_t)idx[i] * pos->stride;
+            PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));
+            PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
+            PortStoreBE16(pv + 4, (int)floorf(lz * 256.0f + 0.5f));
+            u8* pu = (u8*)uv->address + (size_t)idx[i] * uv->stride;
+            PortStoreBE16(pu, endB ? (int)floorf(len / height * 0.25f * 1024.0f + 0.5f) : 0);
+            PortStoreBE16(pu + 2, top ? 0 : 1024);
+            if (nrm != NULL && nrm->stride >= 3)
+            {
+                u8* pn = (u8*)nrm->address + (size_t)idx[i] * nrm->stride;
+                pn[0] = 0;
+                pn[1] = (u8)(s8)floorf(m->ny * 64.0f + 0.5f);
+                pn[2] = 0;
+            }
+            if (col != NULL && col->stride >= 4)
+            {
+                u8* pc = (u8*)col->address + (size_t)idx[i] * col->stride;
+                pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+            }
+        }
+        glSetRasterState(p->state.raster, GLS_Culling, 0);
+        made++;
+    }
+    fprintf(stderr, "FDWALL model=%08x panel=%d hidden=%d\n", (unsigned)pModel->id, made, hid);
+}
+
 // PORT (mod): Forbidden Dome's sky is a shallow dome (forbidden_dome/skybox_01: two halves, two 256x256 textures) plus a
 // horizon band (skybox_02) and a top cap (skybox_03). Both dome halves are remapped to ONE picture seen from straight above:
 // the zenith is the centre of the image, the horizon is a circle of radius 45.5% of the width, and the lowest edge of the dome
@@ -2545,6 +2658,7 @@ static glModel* glxLoadModelFromMemory(char* data, int size, unsigned long* pNum
                     PortForbiddenFloor(pModel);
                     PortForbiddenSky(pModel);
                     PortForbiddenLedge(pModel);
+                    PortForbiddenWall(pModel);
                     PortWarioSky(pModel);
                     PortFieldNeutral(pModel);
                     PortGoalSplit(pModel);
