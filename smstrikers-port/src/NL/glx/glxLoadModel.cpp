@@ -1791,25 +1791,26 @@ static void PortForbiddenWall(glModel* pModel)
             enum { kPts = 5 };
             static const float py[kPts] = { -12.82f, -7.42f, 0.0f, 7.42f, 12.82f };
             static const float px[kPts] = { 43.02f, 45.42f, 45.42f, 45.42f, 43.02f };            // the stock wall's line
-            const float xBack = 35.6f, zStand = 4.5f, zTop = 8.15f;
-            u16 aid[4 * kPts];
+            const float xBack = 35.3f, zStand = 4.5f, zTop = 8.15f, zSkirt = 2.4f;   // the floor tucks a little over the stand; a skirt hides the slit under its edge
+            u16 aid[5 * kPts];
             int na = 0;
-            for (int i = 0; i < (int)p->numVertices && na < 4 * kPts; i++)
+            for (int i = 0; i < (int)p->numVertices && na < 5 * kPts; i++)
             {
                 bool dup = false;
                 for (int j = 0; j < na; j++)
                     if (aid[j] == idx[i]) dup = true;
                 if (!dup) aid[na++] = idx[i];
             }
-            if (na < 4 * kPts || (int)p->numVertices < 12 * (kPts - 1))
+            if (na < 5 * kPts || (int)p->numVertices < 18 * (kPts - 1))
                 continue;
             int w = 0;
             for (int j = 0; j + 1 < kPts; j++)
             {
-                const u16 A0 = aid[4 * j], F0 = aid[4 * j + 1], W0 = aid[4 * j + 2], C0 = aid[4 * j + 3];
-                const u16 A1 = aid[4 * j + 4], F1 = aid[4 * j + 5], W1 = aid[4 * j + 6], C1 = aid[4 * j + 7];
-                const u16 fl[6] = { A0, F0, A1, A1, F0, F1 };       // floor
-                for (int i = 0; i < 6; i++) idx[w++] = fl[i];
+                const u16 A0 = aid[5 * j], F0 = aid[5 * j + 1], W0 = aid[5 * j + 2], C0 = aid[5 * j + 3], S0 = aid[5 * j + 4];
+                const u16 A1 = aid[5 * j + 5], F1 = aid[5 * j + 6], W1 = aid[5 * j + 7], C1 = aid[5 * j + 8], S1 = aid[5 * j + 9];
+                const u16 fl[12] = { A0, F0, A1, A1, F0, F1,        // floor
+                                     A0, S0, A1, A1, S0, S1 };      // skirt down from its front edge
+                for (int i = 0; i < 12; i++) idx[w++] = fl[i];
                 if (j == 1 || j == 2)                               // wall only across the gap, |y| <= 7.42
                 {
                     const u16 wl[6] = { W0, C0, W1, W1, C0, C1 };
@@ -1819,16 +1820,16 @@ static void PortForbiddenWall(glModel* pModel)
             while (w < (int)p->numVertices) { idx[w] = idx[0]; w++; }
             for (int j = 0; j < kPts; j++)
             {
-                const float vx[4] = { xBack, px[j], px[j], px[j] };
-                const float vz[4] = { zStand, zStand, zStand, zTop };
+                const float vx[5] = { xBack, px[j], px[j], px[j], xBack };
+                const float vz[5] = { zStand, zStand, zStand, zTop, zSkirt };
                 // the stock wall's mapping: 40 texture units per world unit along (1003 at y = 7.42, running back toward the middle), 218 per unit
                 // of height (top of the wall at v = 30)
                 const int u = (int)floorf(1003.0f + (7.42f - py[j]) * 40.0f + 0.5f);
-                const int vv[4] = { 30, 30 + (int)floorf((px[j] - xBack) * 218.0f * 0.4f + 0.5f),
-                                    30 + (int)floorf((zTop - zStand) * 218.0f + 0.5f), 30 };
-                for (int e = 0; e < 4; e++)
+                const int vv[5] = { 30, 30 + (int)floorf((px[j] - xBack) * 218.0f * 0.4f + 0.5f),
+                                    30 + (int)floorf((zTop - zStand) * 218.0f + 0.5f), 30, 30 + (int)floorf((zStand - zSkirt) * 218.0f + 0.5f) };
+                for (int e = 0; e < 5; e++)
                 {
-                    const u16 v = aid[4 * j + e];
+                    const u16 v = aid[5 * j + e];
                     const float lx = vx[e] - m->tx, ly = py[j] - m->ty, lz = vz[e] - m->tz;
                     u8* pv = (u8*)pos->address + (size_t)v * pos->stride;
                     PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));

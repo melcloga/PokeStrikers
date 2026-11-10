@@ -1211,6 +1211,41 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
             }
         }
     }
+
+    // PORT (mod): Forbidden Dome's +x end terrace: four more seat+crowd sections behind the jumbotron, two to each side of the middle, in two
+    // rows climbing the terrace (the back row is raised with the slope). Copies of the x = 8.9 top-tier section, turned a quarter turn to face
+    // the pitch like the lower end stand. STRIKERS_FD_ENDTIER=0 turns them off.
+    {
+        static const char* sT = getenv("STRIKERS_FD_TEMPLE");
+        static const char* sE = getenv("STRIKERS_FD_ENDTIER");
+        if (!(sT != NULL && sT[0] == '0') && !(sE != NULL && sE[0] == '0'))
+        {
+            static const char* const kModel[] = { "forbidden_dome/seatsleft47", "forbidden_dome/seatsleft123", "forbidden_dome/crowd_23" };
+            struct EndSpot { float dx, shift, dz; };
+            // dx: where the section's depth lands (x = source y + dx); shift: sideways (y = -(source x + shift)); dz: climb
+            static const EndSpot kSpot[] = {
+                { 21.3f, -13.9f, 0.0f }, { 21.3f, -3.9f, 0.0f },      // front row, y = +5 and -5, x about 42.4
+                { 26.0f, -13.9f, 2.1f }, { 26.0f, -3.9f, 2.1f } };    // back row, x about 47.1, up with the slope
+            for (size_t q = 0; q < sizeof(kModel) / sizeof(kModel[0]); q++)
+            {
+                if (objectData.m_uModelID != nlStringLowerHash(kModel[q]))
+                    continue;
+                for (size_t r = 0; r < sizeof(kSpot) / sizeof(kSpot[0]); r++)
+                {
+                    WorldObjectData cl = objectData;
+                    nlMatrix4& m = cl.m_worldMatrix;
+                    const nlMatrix4 o = objectData.m_worldMatrix;
+                    m.m11 = o.m12; m.m12 = -o.m11; m.m13 = o.m13;
+                    m.m21 = o.m22; m.m22 = -o.m21; m.m23 = o.m23;
+                    m.m31 = o.m32; m.m32 = -o.m31; m.m33 = o.m33;
+                    m.m41 = o.m42 + kSpot[r].dx; m.m42 = -(o.m41 + kSpot[r].shift); m.m43 = o.m43 + kSpot[r].dz;
+                    cl.m_uHashID = objectData.m_uHashID * 31u + 0x7c33u + (unsigned)(q * 8 + r);
+                    fprintf(stderr, "FDENDTIER clone %s -> (%.1f, %.1f, %.1f)\n", kModel[q], m.m41, m.m42, m.m43);
+                    HandleObjectCreation(&cl);
+                }
+            }
+        }
+    }
 }
 
 /**
