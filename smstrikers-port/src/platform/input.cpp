@@ -26,6 +26,7 @@ extern "C" void PortInputNoteKey(int scancode) { (void)scancode; }
 #include "dolphin/os.h"
 #include "dolphin/pad.h"
 #include "port/input.h"
+#include "port/freecam.h"
 #include "port/overlay.h"
 #include "port/online.h"
 #include "port/online_panel.h"
@@ -1084,7 +1085,7 @@ extern "C" void PortUpdateSyntheticInput(unsigned long frame)
     held |= fake_key_state(frame, &lx, &ly, &rx, &ry, &tl, &tr);
 
     // The debug menu detaches the keyboard, so a neutral virtual pad keeps port 0 connected.
-    const bool menuHasKeyboard = PortOverlayMenuOpen() && PortInputKeyboardEnabled();
+    const bool menuHasKeyboard = (PortOverlayMenuOpen() || PortFreeCamActive()) && PortInputKeyboardEnabled();
     if (held == 0 && lx == 0 && ly == 0 && rx == 0 && ry == 0 && tl == 0 && tr == 0 &&
         !menuHasKeyboard)
     {

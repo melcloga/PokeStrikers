@@ -1101,6 +1101,20 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
                     if (objectData.m_uModelID == nlStringLowerHash(kShell[q]))
                         return;
             }
+            // the six hump bays on the upper tier (arched humps, their frames and filler blocks, and the six tall crowds that float on them);
+            // new seat+crowd sections are copied into those bays below. STRIKERS_FD_UPPER=0 keeps everything as stock.
+            static const char* sUp = getenv("STRIKERS_FD_UPPER");
+            if (!(sUp != NULL && sUp[0] == '0'))
+            {
+                static const char* const kBay[] = {
+                    "forbidden_dome/boxseat_dome04", "forbidden_dome/boxseat_dome10", "forbidden_dome/boxseat_dome11", "forbidden_dome/boxseat_dome12", "forbidden_dome/boxseat_dome13", "forbidden_dome/boxseat_dome14",
+                    "forbidden_dome/object117", "forbidden_dome/object118", "forbidden_dome/object126", "forbidden_dome/object127", "forbidden_dome/object128", "forbidden_dome/object129",
+                    "forbidden_dome/crowd_29", "forbidden_dome/crowd_30", "forbidden_dome/crowd_31", "forbidden_dome/crowd_38", "forbidden_dome/crowd_39", "forbidden_dome/crowd_40",
+                    "forbidden_dome/boxseat_block-in03", "forbidden_dome/boxseat_block-in06", "forbidden_dome/boxseat_block-in07", "forbidden_dome/boxseat_block-in08" };
+                for (size_t q = 0; q < sizeof(kBay) / sizeof(kBay[0]); q++)
+                    if (objectData.m_uModelID == nlStringLowerHash(kBay[q]))
+                        return;
+            }
             static const char* const kJumbo[] = { "forbidden_dome/jumbo_screen", "forbidden_dome/jumbotron_glass",
                                                   "forbidden_dome/jumbotron" };
             for (size_t q = 0; q < sizeof(kJumbo) / sizeof(kJumbo[0]); q++)
@@ -1162,6 +1176,37 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
                 m.m41 = o.m42 + dx; m.m42 = -(o.m41 + kStand[q].shift); m.m43 = o.m43;
                 cl.m_uHashID = objectData.m_uHashID * 31u + 0x5a17u + (unsigned)q;
                 fprintf(stderr, "FDCROWD clone %s -> (%.1f, %.1f, %.1f)\n", kStand[q].model, m.m41, m.m42, m.m43);
+                HandleObjectCreation(&cl);
+            }
+        }
+    }
+
+    // PORT (mod): Forbidden Dome's upper tier: every bay that held a hump gets a copy of the neighbouring seat section and its crowd
+    // slid sideways into it, so the top row runs unbroken. STRIKERS_FD_UPPER=0 turns it off.
+    {
+        static const char* sT = getenv("STRIKERS_FD_TEMPLE");
+        static const char* sU = getenv("STRIKERS_FD_UPPER");
+        if (!(sT != NULL && sT[0] == '0') && !(sU != NULL && sU[0] == '0'))
+        {
+            struct UpCopy { const char* model; float dx; };
+            static const UpCopy kUp[] = {
+                // centre bay (x = 0) from the x = 8.9 sections
+                { "forbidden_dome/seatsleft47", -8.9f },  { "forbidden_dome/seatsleft123", -8.9f }, { "forbidden_dome/crowd_23", -8.9f },
+                { "forbidden_dome/seatsleft83", -8.9f },  { "forbidden_dome/crowd_32", -8.9f },
+                // x = +17.6 bay from the x = 8.9 sections
+                { "forbidden_dome/seatsleft47", 8.7f },   { "forbidden_dome/seatsleft123", 8.7f },  { "forbidden_dome/crowd_23", 8.7f },
+                { "forbidden_dome/seatsleft83", 8.7f },   { "forbidden_dome/crowd_32", 8.7f },
+                // x = -17.4 bay from the x = -8.8 sections
+                { "forbidden_dome/seatsleft124", -8.6f }, { "forbidden_dome/crowd_24", -8.6f },
+                { "forbidden_dome/seatsleft118", -8.6f }, { "forbidden_dome/crowd_33", -8.6f } };
+            for (size_t q = 0; q < sizeof(kUp) / sizeof(kUp[0]); q++)
+            {
+                if (objectData.m_uModelID != nlStringLowerHash(kUp[q].model))
+                    continue;
+                WorldObjectData cl = objectData;
+                cl.m_worldMatrix.m41 += kUp[q].dx;
+                cl.m_uHashID = objectData.m_uHashID * 31u + 0x6b21u + (unsigned)q;
+                fprintf(stderr, "FDUPPER clone %s -> (%.1f, %.1f, %.1f)\n", kUp[q].model, cl.m_worldMatrix.m41, cl.m_worldMatrix.m42, cl.m_worldMatrix.m43);
                 HandleObjectCreation(&cl);
             }
         }

@@ -8,6 +8,7 @@
 #include "port/benchmark.h"
 #include "port/config.h"
 #include "port/framerate.h"
+#include "port/freecam.h"
 #include "port/host.h"
 #include "port/input.h"
 #include "port/launch.h"
@@ -282,7 +283,7 @@ constexpr size_t kPoolCount = sizeof(kPoolNames) / sizeof(kPoolNames[0]);
 void set_menu_open(bool open)
 {
     s_menuOpen = open;
-    PADSetKeyboardActive(0, s_menuOpen ? FALSE : TRUE);
+    PADSetKeyboardActive(0, (s_menuOpen || PortFreeCamActive()) ? FALSE : TRUE);
 }
 
 // A checkbox over a u8 flag. The game's switches are a mix of bool and u8, and ImGui wants a bool.
@@ -653,6 +654,9 @@ void PortOverlayHandleKey(int scancode, int down)
         *scale = (*scale == 0.25f) ? 1.0f : 0.25f;
         break;
     }
+    case SDL_SCANCODE_F8:
+        PortFreeCamToggle();
+        break;
     case SDL_SCANCODE_F11:
         set_fullscreen(!is_fullscreen());
         break;
@@ -1592,6 +1596,7 @@ void draw_input_tab()
         { "F2", "the compact overlay" },
         { "F3 / F4", "freeze / quarter speed" },
         { "F5", "the online panel" },
+        { "F8", "free camera: WASD fly, Q/E down/up, hold right mouse to look, Shift fast, Ctrl slow, [ ] zoom" },
         { "F11", "fullscreen" },
         { "F12 or P", "screenshot, to STRIKERS_SHOT_DIR" },
     };
