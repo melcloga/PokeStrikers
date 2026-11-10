@@ -2120,7 +2120,10 @@ static void PortForbiddenJumboFrame(glModel* pModel)
     const float th = (sTh != NULL && sTh[0] != 0) ? (float)atof(sTh) : 0.41f;
     // two rounded rectangles: the inner one follows the screen's own corners, the outer one is only slightly rounded
     const float Yi = 2.43f, Zi = 1.27f, ri = 0.50f;
-    const float Yo = Yi + th, Zo = Zi + th, ro = 0.22f;
+    // the sides are a little wider than the top and bottom so the frame's outer edge meets the ends of the ledge either side (y = 5.5 once scaled)
+    static const char* sTy = getenv("STRIKERS_FD_FRAME_TY");
+    const float thy = (sTy != NULL && sTy[0] != 0) ? (float)atof(sTy) : 0.60f;
+    const float Yo = Yi + thy, Zo = Zi + th, ro = 0.22f;
     float ring[2][kN][2];                                        // [inner/outer][point][y, z]
     for (int r = 0; r < 2; r++)
     {
