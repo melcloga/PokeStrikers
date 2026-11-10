@@ -1487,6 +1487,41 @@ static void PortForbiddenLedge(glModel* pModel)
                 nz[a2] = -0.9f - drop;
             }
         }
+        // The ledge's cut end on the jumbotron side (the end cap, the faces in the last stretch before y = 5.5): drawn as a plain dark navy
+        // plate, like the thick dark border along the top, instead of the gradient. A cap triangle is one whose three corners all lie
+        // within 5.7 of the middle line at the +x end; only vertices used by nothing else are recoloured, so the long faces are untouched.
+        std::vector<unsigned char> capOnly(65536, 0);
+        {
+            std::vector<int> idToA(65536, -1);
+            for (size_t a2 = 0; a2 < n; a2++)
+                idToA[ids[a2]] = (int)a2;
+            std::vector<unsigned char> inCap(65536, 0), inOther(65536, 0);
+            const float yOff = b3 ? -9.0f : 9.0f;
+            for (int i = 2; i < (int)p->numVertices; i++)
+            {
+                const int t0 = idx[i - 2], t1 = idx[i - 1], t2 = idx[i];
+                if (t0 == t1 || t1 == t2 || t0 == t2)
+                    continue;
+                const int ta[3] = { idToA[t0], idToA[t1], idToA[t2] };
+                if (ta[0] < 0 || ta[1] < 0 || ta[2] < 0)
+                    continue;
+                bool cap = true;
+                for (int c = 0; c < 3; c++)
+                    if (!(nx[ta[c]] + 0.7f > 30.0f && fabsf(ny[ta[c]] + yOff) < 5.7f))
+                        cap = false;
+                const int tid[3] = { t0, t1, t2 };
+                for (int c = 0; c < 3; c++)
+                    (cap ? inCap : inOther)[tid[c]] = 1;
+            }
+            int nCap = 0;
+            for (size_t a2 = 0; a2 < n; a2++)
+                if (inCap[ids[a2]] && !inOther[ids[a2]])
+                {
+                    capOnly[ids[a2]] = 1;
+                    nCap++;
+                }
+            fprintf(stderr, "FDLEDGE endcap model=%08x vertices=%d\n", (unsigned)pModel->id, nCap);
+        }
         const float totalH = 1.8f + drop;
         PortLedgeEntry entry;
         entry.uv = (u8*)uv->address;
@@ -1534,8 +1569,17 @@ static void PortForbiddenLedge(glModel* pModel)
                 if (us < 0.0f) us = 0.0f;
                 if (us > 1.0f) us = 1.0f;
                 if (b3) us = 1.0f - us; // seen from the field the far ledge runs the other way; keep the logos readable
-                staticU.push_back(us);
-                staticV.push_back(v);
+                if (capOnly[ids[a2]])
+                {
+                    us = 500.0f / 1024.0f;       // a plain navy spot of the static texture
+                    staticU.push_back(us);
+                    staticV.push_back(64.0f / 1024.0f);
+                }
+                else
+                {
+                    staticU.push_back(us);
+                    staticV.push_back(v);
+                }
             }
             if (col != NULL && col->stride >= 4)
             {
