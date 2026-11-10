@@ -1129,16 +1129,16 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
         static const char* sCX = getenv("STRIKERS_FD_CROWD_X");
         if (!(sT != NULL && sT[0] == '0') && !(sC != NULL && sC[0] == '0'))
         {
-            // Section copies: { model, sideways shift before the turn }. The old tunnel/stair gaps are closed by sliding the two inner
-            // sections out and adding a copy of an outer (seven-wide) section in the middle, so the whole end is one continuous crowd.
+            // Section copies: { model, sideways shift before the turn }. The stand keeps its two stair aisles (beside the middle) exactly
+            // as the side stands have them, and the gap in the middle (the old tunnel mouth) is filled with one more seat+crowd section.
             struct StandCopy { const char* model; float shift; };
             static const StandCopy kStand[] = {
-                { "forbidden_dome/seatsleft65", -1.3f },   { "forbidden_dome/seatsleft66", 0.0f }, { "forbidden_dome/seatsleft66", 10.66f },
-                { "forbidden_dome/seatsleft103", 1.3f },   { "forbidden_dome/seatsleft104", 0.0f },
-                { "forbidden_dome/crowd_08", -1.3f },      { "forbidden_dome/crowd_04", 0.0f }, { "forbidden_dome/crowd_04", 10.66f },
-                { "forbidden_dome/crowd_07", 1.3f },       { "forbidden_dome/crowd_05", 0.0f },
-                // the two stair sets, back at their original spots (beside the middle of the stand)
-                { "forbidden_dome/stairsleft13", 0.0f },   { "forbidden_dome/stairsleft19", 0.0f } };
+                { "forbidden_dome/seatsleft66", 0.0f },  { "forbidden_dome/seatsleft65", 0.0f },  { "forbidden_dome/seatsleft103", 0.0f },
+                { "forbidden_dome/seatsleft104", 0.0f }, { "forbidden_dome/crowd_04", 0.0f },     { "forbidden_dome/crowd_05", 0.0f },
+                { "forbidden_dome/crowd_07", 0.0f },     { "forbidden_dome/crowd_08", 0.0f },
+                { "forbidden_dome/stairsleft13", 0.0f }, { "forbidden_dome/stairsleft19", 0.0f },
+                // the middle filler: copies of the 65 section and its crowd, slid across to the centre
+                { "forbidden_dome/seatsleft65", 4.08f }, { "forbidden_dome/crowd_08", 3.93f } };
             for (size_t q = 0; q < sizeof(kStand) / sizeof(kStand[0]); q++)
             {
                 if (objectData.m_uModelID != nlStringLowerHash(kStand[q].model))
