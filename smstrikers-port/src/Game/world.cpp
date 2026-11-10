@@ -1092,6 +1092,15 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
             for (size_t q = 0; q < sizeof(kTemple) / sizeof(kTemple[0]); q++)
                 if (objectData.m_uModelID == nlStringLowerHash(kTemple[q]))
                     return;
+            // the twelve grey sun-shield canopies over the upper tier (crowds and seat rows stay); STRIKERS_FD_SHELLS=0 keeps them
+            static const char* sSh = getenv("STRIKERS_FD_SHELLS");
+            if (!(sSh != NULL && sSh[0] == '0'))
+            {
+                static const char* const kShell[] = { "forbidden_dome/boxseat32", "forbidden_dome/boxseat30", "forbidden_dome/boxseat31", "forbidden_dome/boxseat29", "forbidden_dome/boxseat33", "forbidden_dome/boxseat18", "forbidden_dome/boxseat34", "forbidden_dome/boxseat26", "forbidden_dome/boxseat35", "forbidden_dome/boxseat27", "forbidden_dome/boxseat36", "forbidden_dome/boxseat28" };
+                for (size_t q = 0; q < sizeof(kShell) / sizeof(kShell[0]); q++)
+                    if (objectData.m_uModelID == nlStringLowerHash(kShell[q]))
+                        return;
+            }
             static const char* const kJumbo[] = { "forbidden_dome/jumbo_screen", "forbidden_dome/jumbotron_glass",
                                                   "forbidden_dome/jumbotron" };
             for (size_t q = 0; q < sizeof(kJumbo) / sizeof(kJumbo[0]); q++)

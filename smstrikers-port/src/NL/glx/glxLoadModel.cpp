@@ -1855,10 +1855,10 @@ static void PortForbiddenJumboFrame(glModel* pModel)
     const float Tx = 27.43270f, Ty = 0.01795f, Tz = 8.61202f;   // the casing's stock placement
     const float Cy = 0.01795f, Cz = 7.36177f;                    // the screen's stock centre
     const float Fx = 24.40f;                                     // frame plane, a little in front of the glass
-    static const char* sTh = getenv("STRIKERS_FD_FRAME_T");      // border thickness in stock units (default 0.37)
-    const float th = (sTh != NULL && sTh[0] != 0) ? (float)atof(sTh) : 0.37f;
+    static const char* sTh = getenv("STRIKERS_FD_FRAME_T");      // border thickness in stock units (default 0.41)
+    const float th = (sTh != NULL && sTh[0] != 0) ? (float)atof(sTh) : 0.41f;
     // two rounded rectangles: the inner one follows the screen's own corners, the outer one is only slightly rounded
-    const float Yi = 2.47f, Zi = 1.30f, ri = 0.46f;
+    const float Yi = 2.43f, Zi = 1.27f, ri = 0.50f;
     const float Yo = Yi + th, Zo = Zi + th, ro = 0.22f;
     float ring[2][kN][2];                                        // [inner/outer][point][y, z]
     for (int r = 0; r < 2; r++)
