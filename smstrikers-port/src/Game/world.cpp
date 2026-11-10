@@ -1212,8 +1212,8 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
         }
     }
 
-    // PORT (mod): Forbidden Dome's +x end terrace: four more seat+crowd sections behind the jumbotron, two to each side of the middle, in two
-    // rows climbing the terrace (the back row is raised with the slope). Copies of the x = 8.9 top-tier section, turned a quarter turn to face
+    // PORT (mod): Forbidden Dome's +x end terrace: two more seat+crowd sections behind the jumbotron, one to each side of the middle, set back one
+    // row from the screen so the crowd clears its frame. Copies of the x = 8.9 top-tier section, turned a quarter turn to face
     // the pitch like the lower end stand. STRIKERS_FD_ENDTIER=0 turns them off.
     {
         static const char* sT = getenv("STRIKERS_FD_TEMPLE");
@@ -1224,8 +1224,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
             struct EndSpot { float dx, shift, dz; };
             // dx: where the section's depth lands (x = source y + dx); shift: sideways (y = -(source x + shift)); dz: climb
             static const EndSpot kSpot[] = {
-                { 21.3f, -13.9f, 0.0f }, { 21.3f, -3.9f, 0.0f },      // front row, y = +5 and -5, x about 42.4
-                { 26.0f, -13.9f, 2.1f }, { 26.0f, -3.9f, 2.1f } };    // back row, x about 47.1, up with the slope
+                { 22.3f, -13.9f, 0.45f }, { 22.3f, -3.9f, 0.45f } };  // y = +5 and -5, x about 43.4: one row's depth back from the screen, up with the slope
             for (size_t q = 0; q < sizeof(kModel) / sizeof(kModel[0]); q++)
             {
                 if (objectData.m_uModelID != nlStringLowerHash(kModel[q]))
