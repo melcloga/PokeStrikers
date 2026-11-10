@@ -1136,7 +1136,9 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
                 { "forbidden_dome/seatsleft65", -1.3f },   { "forbidden_dome/seatsleft66", 0.0f }, { "forbidden_dome/seatsleft66", 10.66f },
                 { "forbidden_dome/seatsleft103", 1.3f },   { "forbidden_dome/seatsleft104", 0.0f },
                 { "forbidden_dome/crowd_08", -1.3f },      { "forbidden_dome/crowd_04", 0.0f }, { "forbidden_dome/crowd_04", 10.66f },
-                { "forbidden_dome/crowd_07", 1.3f },       { "forbidden_dome/crowd_05", 0.0f } };
+                { "forbidden_dome/crowd_07", 1.3f },       { "forbidden_dome/crowd_05", 0.0f },
+                // the two stair sets, back at their original spots (beside the middle of the stand)
+                { "forbidden_dome/stairsleft13", 0.0f },   { "forbidden_dome/stairsleft19", 0.0f } };
             for (size_t q = 0; q < sizeof(kStand) / sizeof(kStand[0]); q++)
             {
                 if (objectData.m_uModelID != nlStringLowerHash(kStand[q].model))
