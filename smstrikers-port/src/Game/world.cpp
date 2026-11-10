@@ -1129,12 +1129,17 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
         static const char* sCX = getenv("STRIKERS_FD_CROWD_X");
         if (!(sT != NULL && sT[0] == '0') && !(sC != NULL && sC[0] == '0'))
         {
-            static const char* const kStand[] = { "forbidden_dome/seatsleft65", "forbidden_dome/seatsleft66", "forbidden_dome/seatsleft103",
-                                                  "forbidden_dome/seatsleft104", "forbidden_dome/stairsleft13", "forbidden_dome/stairsleft19", "forbidden_dome/crowd_04", "forbidden_dome/crowd_05",
-                                                  "forbidden_dome/crowd_07", "forbidden_dome/crowd_08" };
+            // Section copies: { model, sideways shift before the turn }. The old tunnel/stair gaps are closed by sliding the two inner
+            // sections out and adding a copy of an outer (seven-wide) section in the middle, so the whole end is one continuous crowd.
+            struct StandCopy { const char* model; float shift; };
+            static const StandCopy kStand[] = {
+                { "forbidden_dome/seatsleft65", -1.3f },   { "forbidden_dome/seatsleft66", 0.0f }, { "forbidden_dome/seatsleft66", 10.66f },
+                { "forbidden_dome/seatsleft103", 1.3f },   { "forbidden_dome/seatsleft104", 0.0f },
+                { "forbidden_dome/crowd_08", -1.3f },      { "forbidden_dome/crowd_04", 0.0f }, { "forbidden_dome/crowd_04", 10.66f },
+                { "forbidden_dome/crowd_07", 1.3f },       { "forbidden_dome/crowd_05", 0.0f } };
             for (size_t q = 0; q < sizeof(kStand) / sizeof(kStand[0]); q++)
             {
-                if (objectData.m_uModelID != nlStringLowerHash(kStand[q]))
+                if (objectData.m_uModelID != nlStringLowerHash(kStand[q].model))
                     continue;
                 const float dx = (sCX != NULL && sCX[0] != 0) ? (float)atof(sCX) : 11.3f;
                 WorldObjectData cl = objectData;
@@ -1143,11 +1148,10 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
                 m.m11 = o.m12; m.m12 = -o.m11; m.m13 = o.m13;
                 m.m21 = o.m22; m.m22 = -o.m21; m.m23 = o.m23;
                 m.m31 = o.m32; m.m32 = -o.m31; m.m33 = o.m33;
-                m.m41 = o.m42 + dx; m.m42 = -o.m41; m.m43 = o.m43;
-                cl.m_uHashID = objectData.m_uHashID * 31u + 0x5a17u;
-                fprintf(stderr, "FDCROWD clone %s -> (%.1f, %.1f, %.1f)\n", kStand[q], m.m41, m.m42, m.m43);
+                m.m41 = o.m42 + dx; m.m42 = -(o.m41 + kStand[q].shift); m.m43 = o.m43;
+                cl.m_uHashID = objectData.m_uHashID * 31u + 0x5a17u + (unsigned)q;
+                fprintf(stderr, "FDCROWD clone %s -> (%.1f, %.1f, %.1f)\n", kStand[q].model, m.m41, m.m42, m.m43);
                 HandleObjectCreation(&cl);
-                break;
             }
         }
     }

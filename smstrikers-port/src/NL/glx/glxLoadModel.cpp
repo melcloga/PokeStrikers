@@ -1818,7 +1818,7 @@ static void PortForbiddenJumboFrame(glModel* pModel)
     for (int k = 0; k < (int)pModel->numPackets; k++)
     {
         glModelPacket* q = (glModelPacket*)((u8*)pModel->packets + (size_t)k * sizeof(glModelPacket));
-        if (q->indexBuffer != 0 && q->numVertices >= 24)
+        if (q->indexBuffer != 0 && q->numVertices >= 44)
         {
             p = q;
             break;
@@ -1840,40 +1840,61 @@ static void PortForbiddenJumboFrame(glModel* pModel)
     if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
         return;
     u16* idx = (u16*)p->indexBuffer;
-    u16 vid[16];
+    enum { kSeg = 4, kN = 4 * (kSeg + 1), kVerts = 2 * kN };     // outline points per ring, and both rings
+    u16 vid[kVerts];
     int nd = 0;
-    for (int i = 0; i < (int)p->numVertices && nd < 16; i++)
+    for (int i = 0; i < (int)p->numVertices && nd < kVerts; i++)
     {
         bool dup = false;
         for (int j = 0; j < nd; j++)
             if (vid[j] == idx[i]) dup = true;
         if (!dup) vid[nd++] = idx[i];
     }
-    if (nd < 16)
+    if (nd < kVerts)
         return;
     const float Tx = 27.43270f, Ty = 0.01795f, Tz = 8.61202f;   // the casing's stock placement
     const float Cy = 0.01795f, Cz = 7.36177f;                    // the screen's stock centre
     const float Fx = 24.40f;                                     // frame plane, a little in front of the glass
-    const float Yo = 3.10f, Zo = 1.92f, Yi = 2.45f, Zi = 1.30f;  // outer and inner half sizes (stock units)
-    // quads: top, bottom, left, right as { y0, y1, z0, z1 }
-    const float qd[4][4] = { { -Yo, Yo, Zi, Zo }, { -Yo, Yo, -Zo, -Zi }, { -Yo, -Yi, -Zi, Zi }, { Yi, Yo, -Zi, Zi } };
-    // the packet is a triangle STRIP: four quads joined by degenerate triangles (last vertex and next first vertex repeated)
-    u16 tri[22];
-    int nt = 0;
-    for (int q = 0; q < 4; q++)
+    static const char* sTh = getenv("STRIKERS_FD_FRAME_T");      // border thickness in stock units (default 0.28)
+    const float th = (sTh != NULL && sTh[0] != 0) ? (float)atof(sTh) : 0.28f;
+    // two rounded rectangles: the inner one follows the screen's own corners, the outer one is only slightly rounded
+    const float Yi = 2.56f, Zi = 1.38f, ri = 0.40f;
+    const float Yo = Yi + th, Zo = Zi + th, ro = 0.22f;
+    float ring[2][kN][2];                                        // [inner/outer][point][y, z]
+    for (int r = 0; r < 2; r++)
     {
-        const u16 a = vid[q * 4], b = vid[q * 4 + 1], c = vid[q * 4 + 2], d = vid[q * 4 + 3];
-        if (q > 0) { tri[nt++] = vid[q * 4 - 1]; tri[nt++] = a; }
-        tri[nt++] = a; tri[nt++] = b; tri[nt++] = c; tri[nt++] = d;
-        const float ys[4] = { qd[q][0], qd[q][0], qd[q][1], qd[q][1] };
-        const float zs[4] = { qd[q][3], qd[q][2], qd[q][3], qd[q][2] };
-        for (int i = 0; i < 4; i++)
+        const float Y = r ? Yo : Yi, Z = r ? Zo : Zi, rad = r ? ro : ri;
+        for (int c = 0; c < 4; c++)
         {
-            const u16 v = vid[q * 4 + i];
+            const float sy = (c == 0 || c == 3) ? 1.0f : -1.0f;   // corners: top-right, top-left, bottom-left, bottom-right
+            const float sz = (c == 0 || c == 1) ? 1.0f : -1.0f;
+            for (int k = 0; k <= kSeg; k++)
+            {
+                // each corner sweeps a quarter turn; counter-clockwise starting at the top-right
+                const float a0 = 1.5707963f * (float)c;
+                const float aa = a0 + 1.5707963f * (float)k / (float)kSeg;
+                ring[r][c * (kSeg + 1) + k][0] = sy * (Y - rad) + rad * cosf(aa);
+                ring[r][c * (kSeg + 1) + k][1] = sz * (Z - rad) + rad * sinf(aa);
+            }
+        }
+    }
+    // one closed triangle strip: inner0 outer0 inner1 outer1 ... then back to the start
+    u16 tri[2 * kN + 2];
+    int nt = 0;
+    for (int i = 0; i <= kN; i++)
+    {
+        const int pi = i % kN;
+        tri[nt++] = vid[pi];
+        tri[nt++] = vid[kN + pi];
+    }
+    for (int i = 0; i < kN; i++)
+        for (int r = 0; r < 2; r++)
+        {
+            const u16 v = vid[r * kN + i];
             u8* pv = (u8*)pos->address + (size_t)v * pos->stride;
             PortStoreBE16(pv, (int)floorf((Fx - Tx) * 256.0f + 0.5f));
-            PortStoreBE16(pv + 2, (int)floorf((Cy + ys[i] - Ty) * 256.0f + 0.5f));
-            PortStoreBE16(pv + 4, (int)floorf((Cz + zs[i] - Tz) * 256.0f + 0.5f));
+            PortStoreBE16(pv + 2, (int)floorf((Cy + ring[r][i][0] - Ty) * 256.0f + 0.5f));
+            PortStoreBE16(pv + 4, (int)floorf((Cz + ring[r][i][1] - Tz) * 256.0f + 0.5f));
             u8* pu = (u8*)uv->address + (size_t)v * uv->stride;
             PortStoreBE16(pu, 500);        // a plain navy spot of the static ledge texture
             PortStoreBE16(pu + 2, 64);
@@ -1888,7 +1909,6 @@ static void PortForbiddenJumboFrame(glModel* pModel)
                 pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
             }
         }
-    }
     for (int i = 0; i < (int)p->numVertices; i++)
         idx[i] = (i < nt) ? tri[i] : tri[nt - 1];
     glSetRasterState(p->state.raster, GLS_Culling, 0);
