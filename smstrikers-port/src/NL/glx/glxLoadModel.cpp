@@ -1628,6 +1628,7 @@ struct PortFdPanel
     unsigned tex;               // texture handle to give the packet (0 = keep the packet's own)
     int flat;                   // 1 = one flat colour: every vertex gets the same spot of the texture (a plain dark patch)
     float z0;                   // bottom of the panel (h is the top)
+    int arc;                    // 1 = a curved wall along the stand's end instead of one straight panel (the table in the code)
 };
 struct PortFdWallModel
 {
@@ -1639,7 +1640,7 @@ struct PortFdWallModel
 };
 static const PortFdWallModel kPortFdWall[] = {
     { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,27.25f,-13.58f,27.25f,13.58f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
-    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,16.0f,0x2383ea6au,1,0.0f}, } },
+    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,15.0f,0x2383ea6au,1,0.0f,1}, } },
     { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
     { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
     { "forbidden_dome/seatsleft66", 0x13, -10.6592f, 20.7137f, 2.1222f, 0, {  } },
@@ -1721,6 +1722,91 @@ static void PortForbiddenWall(glModel* pModel)
         }
         if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
             continue;
+        if (pn->arc)
+        {
+            // A curved wall: the polyline below follows the stand's end, set in front of the stone terrace's rounded outer edge, so
+            // the wall wraps round the way the rest of the stadium does. One top and one bottom vertex per point, joined into quads of
+            // the packet's triangle list.
+            static const float kHalf[6][2] = { { 31.1f, 24.4f }, { 36.0f, 22.0f }, { 40.4f, 18.4f }, { 43.4f, 13.4f }, { 45.0f, 7.0f }, { 45.5f, 0.0f } };
+            enum { kPts = 11 };
+            float pts[kPts][2];                         // y ascending, from the far -y corner round to the +y corner
+            for (int i = 0; i < 6; i++)
+            {
+                pts[i][0] = kHalf[i][0];
+                pts[i][1] = -kHalf[i][1];
+            }
+            for (int i = 1; i < 6; i++)
+            {
+                pts[5 + i][0] = kHalf[5 - i][0];
+                pts[5 + i][1] = kHalf[5 - i][1];
+            }
+            u16 aid[2 * kPts];
+            int na = 0;
+            for (int i = 0; i < (int)p->numVertices && na < 2 * kPts; i++)
+            {
+                bool dup = false;
+                for (int j = 0; j < na; j++)
+                    if (aid[j] == idx[i]) dup = true;
+                if (!dup) aid[na++] = idx[i];
+            }
+            if (na < 2 * kPts || (int)p->numVertices < 6 * (kPts - 1))
+                continue;
+            static const char* sAH = getenv("STRIKERS_FD_ENDWALL_H");
+            const float top = (sAH != NULL && sAH[0] != 0) ? (float)atof(sAH) : pn->h;
+            int w = 0;
+            for (int j = 0; j + 1 < kPts; j++)
+            {
+                const u16 t0 = aid[2 * j], b0 = aid[2 * j + 1], t1 = aid[2 * j + 2], b1 = aid[2 * j + 3];
+                const u16 tri[6] = { t0, b0, t1, t1, b0, b1 };
+                for (int i = 0; i < 6; i++) idx[w++] = tri[i];
+            }
+            while (w < (int)p->numVertices) { idx[w] = idx[0]; w++; }
+            for (int j = 0; j < kPts; j++)
+            {
+                const int j0 = j > 0 ? j - 1 : j, j1 = j < kPts - 1 ? j + 1 : j;
+                float tx = pts[j1][0] - pts[j0][0], ty = pts[j1][1] - pts[j0][1];
+                const float tl = sqrtf(tx * tx + ty * ty);
+                if (tl > 1e-6f) { tx /= tl; ty /= tl; }
+                const float nx = -ty, ny = tx;          // toward the pitch
+                for (int e = 0; e < 2; e++)
+                {
+                    const u16 v = aid[2 * j + e];
+                    const float lx = pts[j][0] - m->tx, ly = pts[j][1] - m->ty, lz = (e == 0 ? top : pn->z0) - m->tz;
+                    u8* pv = (u8*)pos->address + (size_t)v * pos->stride;
+                    PortStoreBE16(pv, (int)floorf(lx * 256.0f + 0.5f));
+                    PortStoreBE16(pv + 2, (int)floorf(ly * 256.0f + 0.5f));
+                    PortStoreBE16(pv + 4, (int)floorf(lz * 256.0f + 0.5f));
+                    u8* pu = (u8*)uv->address + (size_t)v * uv->stride;
+                    PortStoreBE16(pu, 284);             // the plain dark patch, as the flat wall had
+                    PortStoreBE16(pu + 2, 340);
+                    if (nrm != NULL && nrm->stride >= 3)
+                    {
+                        u8* pnn = (u8*)nrm->address + (size_t)v * nrm->stride;
+                        pnn[0] = (u8)(s8)floorf(nx * 64.0f + 0.5f);
+                        pnn[1] = (u8)(s8)floorf(ny * 64.0f + 0.5f);
+                        pnn[2] = 0;
+                    }
+                    if (col != NULL && col->stride >= 4)
+                    {
+                        u8* pc = (u8*)col->address + (size_t)v * col->stride;
+                        pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+                    }
+                }
+            }
+            glSetRasterState(p->state.raster, GLS_Culling, 0);
+            if (pn->tex != 0)
+            {
+                const bool bShadow = (p->state.texconfig & 0x04) != 0;
+                p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+                p->state.texconfig = bShadow ? 0x05 : 0x01;
+                p->state.texture[0] = (uintptr_t)pn->tex;
+                p->state.texture[1] = (uintptr_t)0xffffffffu;
+                glSetRasterState(p->state.raster, GLS_AlphaBlend, 0);
+                glSetRasterState(p->state.raster, GLS_DepthWrite, 1);
+            }
+            made++;
+            continue;
+        }
         // four distinct vertices of the packet: a-top, a-bottom, b-top, b-bottom
         u16 vid[4];
         int nd = 0;
