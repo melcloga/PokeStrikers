@@ -1640,7 +1640,7 @@ struct PortFdWallModel
 };
 static const PortFdWallModel kPortFdWall[] = {
     { "forbidden_dome/endpiece_walls_01", 0x0, 44.2261f, -0.0021f, 1.5437f, 1, { {0,27.25f,-13.58f,27.25f,13.58f,-1.000f,0.000f,1.0f,0x2383ea6au,0,0.0f}, } },
-    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 1, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,15.0f,0x32683de8u,0,0.0f,1}, } },
+    { "forbidden_dome/endpiece_base_01", 0x2, 43.2939f, -0.0021f, 2.3149f, 2, { {0,40.40f,-17.03f,40.40f,17.03f,-1.000f,0.000f,15.0f,0x32683de8u,0,0.0f,1}, {1,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0x35216d88u,0,0.0f,2} } },
     { "forbidden_dome/seatsleft53", 0x8, -27.7793f, 20.8503f, 2.1454f, 1, { {0,-27.25f,17.08f,-2.30f,17.08f,0.000f,-1.000f}, } },
     { "forbidden_dome/seatsleft65", 0x4, -4.0772f, 20.7140f, 2.1192f, 0, {  } },
     { "forbidden_dome/seatsleft66", 0x13, -10.6592f, 20.7137f, 2.1222f, 0, {  } },
@@ -1722,27 +1722,74 @@ static void PortForbiddenWall(glModel* pModel)
         }
         if (pos == NULL || uv == NULL || pos->stride != 6 || uv->stride < 4)
             continue;
+        if (pn->arc == 2)
+        {
+            // The missing piece of the stone terrace behind the jumbotron: the two terrace halves stop at y = +-5.5, leaving the middle of
+            // the +x end open. A strip across the gap, three points along the end, inner edge to outer edge, mapped as the stock terrace is
+            // (u 276 at the inner edge to 1134 at the outer; v runs along the end at 76 per unit).
+            static const float kTy[3] = { -5.51f, 0.0f, 5.51f };
+            static const float kTxIn[3] = { 38.92f, 39.30f, 38.92f }, kTxOut[3] = { 48.91f, 49.30f, 48.91f };
+            u16 tid[6];
+            int nt = 0;
+            for (int i = 0; i < (int)p->numVertices && nt < 6; i++)
+            {
+                bool dup = false;
+                for (int j = 0; j < nt; j++)
+                    if (tid[j] == idx[i]) dup = true;
+                if (!dup) tid[nt++] = idx[i];
+            }
+            if (nt < 6)
+                continue;
+            for (int i = 0; i < (int)p->numVertices; i++)
+                idx[i] = (i < 6) ? tid[i] : tid[5];        // a strip: in0 out0 in1 out1 in2 out2, then repeats of the last (degenerate)
+            for (int j = 0; j < 3; j++)
+                for (int e = 0; e < 2; e++)
+                {
+                    const u16 v = tid[2 * j + e];
+                    const float wx = e ? kTxOut[j] : kTxIn[j];
+                    const float wz = e ? 13.9f : 9.44f;
+                    u8* pv = (u8*)pos->address + (size_t)v * pos->stride;
+                    PortStoreBE16(pv, (int)floorf((wx - m->tx) * 256.0f + 0.5f));
+                    PortStoreBE16(pv + 2, (int)floorf((kTy[j] - m->ty) * 256.0f + 0.5f));
+                    PortStoreBE16(pv + 4, (int)floorf((wz - m->tz) * 256.0f + 0.5f));
+                    u8* pu = (u8*)uv->address + (size_t)v * uv->stride;
+                    PortStoreBE16(pu, e ? 1134 : 276);
+                    PortStoreBE16(pu + 2, (int)floorf(-683.0f - (5.51f - kTy[j]) * 76.2f + 0.5f));
+                    if (nrm != NULL && nrm->stride >= 3)
+                    {
+                        u8* pnn = (u8*)nrm->address + (size_t)v * nrm->stride;
+                        pnn[0] = 0; pnn[1] = 0; pnn[2] = (u8)(s8)64;
+                    }
+                    if (col != NULL && col->stride >= 4)
+                    {
+                        u8* pc = (u8*)col->address + (size_t)v * col->stride;
+                        pc[0] = 255; pc[1] = 255; pc[2] = 255; pc[3] = 255;
+                    }
+                }
+            glSetRasterState(p->state.raster, GLS_Culling, 0);
+            if (pn->tex != 0)
+            {
+                const bool bShadow = (p->state.texconfig & 0x04) != 0;
+                p->state.texturestate = bShadow ? 0xfc0fcULL : 0xfcULL;
+                p->state.texconfig = bShadow ? 0x05 : 0x01;
+                p->state.texture[0] = (uintptr_t)pn->tex;
+                p->state.texture[1] = (uintptr_t)0xffffffffu;
+                glSetRasterState(p->state.raster, GLS_AlphaBlend, 0);
+                glSetRasterState(p->state.raster, GLS_DepthWrite, 1);
+            }
+            made++;
+            continue;
+        }
         if (pn->arc)
         {
-            // The back of the +x end stand, completed the way the long sides are built: a curved stone wall that follows the stone terrace's
-            // inner edge (stood a little back from it behind the jumbotron, so the screen hangs in front of it), with a stone walkway
-            // between the end stand's top row and that wall. Cross-section per point: A (stand's back edge) -> B (foot of the wall) -> C
-            // (top of the wall, level with the terrace). Four vertices per point, since the wall and the walkway map the texture differently.
-            enum { kHalfN = 6, kPts = 2 * kHalfN - 1 };
-            static const float kY[kHalfN]  = { 0.0f, 2.5f, 5.0f, 7.0f, 9.42f, 11.5f };
-            static const float kXw[kHalfN] = { 40.6f, 40.6f, 40.4f, 38.4f, 37.2f, 35.7f };      // the wall's x at each y
-            static const float kXe[kHalfN] = { 39.3f, 39.3f, 39.0f, 38.4f, 37.2f, 35.7f };      // the terrace's inner edge at each y
-            const float xBack = 35.6f, zStand = 4.5f;                                           // the end stand's back edge and top row
-            float py[kPts], px[kPts], pz[kPts];
-            for (int i = 0; i < kHalfN; i++)                  // -y side first, y ascending, then the +y side
-            {
-                const int lo = kHalfN - 1 - i;                // index into the half tables from the far corner in
-                py[i] = -kY[lo]; px[i] = kXw[lo]; pz[i] = 9.44f + (kXw[lo] - kXe[lo]) * 0.45f;
-            }
-            for (int i = 1; i < kHalfN; i++)
-            {
-                py[kHalfN - 1 + i] = kY[i]; px[kHalfN - 1 + i] = kXw[i]; pz[kHalfN - 1 + i] = 9.44f + (kXw[i] - kXe[i]) * 0.45f;
-            }
+            // The stock outer wall, continued across the +x end: the side walls run in to (45.42, +-7.42) and stop where the temple stood.
+            // Here the stone wall closes that gap flush with them (x = 45.42, z 3.7..8.15, the stock texture mapping), and a stone floor
+            // runs from the end stand's back edge to the wall and tucks against the stock wall's diagonals either side. Four vertices per
+            // point (stand edge, foot of the floor at the wall, wall bottom, wall top): the floor and the wall map the texture differently.
+            enum { kPts = 5 };
+            static const float py[kPts] = { -12.82f, -7.42f, 0.0f, 7.42f, 12.82f };
+            static const float px[kPts] = { 43.02f, 45.42f, 45.42f, 45.42f, 43.02f };            // the stock wall's line
+            const float xBack = 35.6f, zStand = 4.5f, zTop = 8.15f;
             u16 aid[4 * kPts];
             int na = 0;
             for (int i = 0; i < (int)p->numVertices && na < 4 * kPts; i++)
@@ -1759,30 +1806,24 @@ static void PortForbiddenWall(glModel* pModel)
             {
                 const u16 A0 = aid[4 * j], F0 = aid[4 * j + 1], W0 = aid[4 * j + 2], C0 = aid[4 * j + 3];
                 const u16 A1 = aid[4 * j + 4], F1 = aid[4 * j + 5], W1 = aid[4 * j + 6], C1 = aid[4 * j + 7];
-                const u16 tri[12] = { A0, F0, A1, A1, F0, F1,       // walkway
-                                      W0, C0, W1, W1, C0, C1 };     // wall
-                for (int i = 0; i < 12; i++) idx[w++] = tri[i];
+                const u16 fl[6] = { A0, F0, A1, A1, F0, F1 };       // floor
+                for (int i = 0; i < 6; i++) idx[w++] = fl[i];
+                if (j == 1 || j == 2)                               // wall only across the gap, |y| <= 7.42
+                {
+                    const u16 wl[6] = { W0, C0, W1, W1, C0, C1 };
+                    for (int i = 0; i < 6; i++) idx[w++] = wl[i];
+                }
             }
             while (w < (int)p->numVertices) { idx[w] = idx[0]; w++; }
-            float run = 0.0f;                                // distance along the wall, for the texture
             for (int j = 0; j < kPts; j++)
             {
-                if (j > 0)
-                {
-                    const float ddx = px[j] - px[j - 1], ddy = py[j] - py[j - 1];
-                    run += sqrtf(ddx * ddx + ddy * ddy);
-                }
-                const int j0 = j > 0 ? j - 1 : j, j1 = j < kPts - 1 ? j + 1 : j;
-                float tx = px[j1] - px[j0], ty = py[j1] - py[j0];
-                const float tl = sqrtf(tx * tx + ty * ty);
-                if (tl > 1e-6f) { tx /= tl; ty /= tl; }
-                const float wnx = -ty, wny = tx;             // toward the pitch
                 const float vx[4] = { xBack, px[j], px[j], px[j] };
-                const float vz[4] = { zStand, zStand, zStand, pz[j] };
-                // the stock wall's mapping: 40 texture units per world unit along, 218 per unit up (top of the wall at v = 30)
-                const int u = (int)floorf(run * 40.0f + 0.5f);
-                const int vv[4] = { 30, 30 + (int)floorf((px[j] - xBack) * 218.0f + 0.5f),
-                                    30 + (int)floorf((pz[j] - zStand) * 218.0f + 0.5f), 30 };
+                const float vz[4] = { zStand, zStand, zStand, zTop };
+                // the stock wall's mapping: 40 texture units per world unit along (1003 at y = 7.42, running back toward the middle), 218 per unit
+                // of height (top of the wall at v = 30)
+                const int u = (int)floorf(1003.0f + (7.42f - py[j]) * 40.0f + 0.5f);
+                const int vv[4] = { 30, 30 + (int)floorf((px[j] - xBack) * 218.0f * 0.4f + 0.5f),
+                                    30 + (int)floorf((zTop - zStand) * 218.0f + 0.5f), 30 };
                 for (int e = 0; e < 4; e++)
                 {
                     const u16 v = aid[4 * j + e];
@@ -1798,8 +1839,8 @@ static void PortForbiddenWall(glModel* pModel)
                     {
                         u8* pnn = (u8*)nrm->address + (size_t)v * nrm->stride;
                         const bool isFloor = (e < 2);
-                        pnn[0] = (u8)(s8)floorf((isFloor ? 0.0f : wnx) * 64.0f + 0.5f);
-                        pnn[1] = (u8)(s8)floorf((isFloor ? 0.0f : wny) * 64.0f + 0.5f);
+                        pnn[0] = (u8)(s8)(isFloor ? 0 : -64);
+                        pnn[1] = 0;
                         pnn[2] = (u8)(s8)(isFloor ? 64 : 0);
                     }
                     if (col != NULL && col->stride >= 4)
