@@ -1081,7 +1081,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
 
     // PORT (mod): Forbidden Dome's +x end ("temple" behind the goal) is removed and its jumbotron is made bigger and moved back.
     // STRIKERS_FD_TEMPLE=0 keeps the temple and the stock jumbotron; STRIKERS_FD_JUMBO_SCALE / _X / _Z set the screen's size and
-    // its new centre (defaults 1.8, 39.9, 9.0).
+    // its new centre (defaults 1.8, 39.0, 9.0: the frame lands flush with the ledge's ends).
     {
         static const char* sTemple = getenv("STRIKERS_FD_TEMPLE");
         if (!(sTemple != NULL && sTemple[0] == '0'))
@@ -1125,7 +1125,7 @@ void World::CreateWorldObjFromChunk(nlChunk* pChunk)
                 static const char* sX = getenv("STRIKERS_FD_JUMBO_X");
                 static const char* sZ = getenv("STRIKERS_FD_JUMBO_Z");
                 const float sc = (sS != NULL && sS[0] != 0) ? (float)atof(sS) : 1.8f;
-                const float cx = (sX != NULL && sX[0] != 0) ? (float)atof(sX) : 39.9f;
+                const float cx = (sX != NULL && sX[0] != 0) ? (float)atof(sX) : 39.0f;
                 const float cz = (sZ != NULL && sZ[0] != 0) ? (float)atof(sZ) : 9.0f;
                 const float ox = 24.607f, oy = 0.018f, oz = 7.362f; // the stock screen's centre
                 nlMatrix4& wm = objectData.m_worldMatrix;

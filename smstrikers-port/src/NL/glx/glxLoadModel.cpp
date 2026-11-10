@@ -1727,7 +1727,8 @@ static void PortForbiddenWall(glModel* pModel)
             // The missing piece of the stone terrace behind the jumbotron: the two terrace halves stop at y = +-5.5, leaving the middle of
             // the +x end open. A strip across the gap, three points along the end, inner edge to outer edge, mapped as the stock terrace is
             // (u 276 at the inner edge to 1134 at the outer; v runs along the end at 76 per unit).
-            static const float kTy[3] = { -5.51f, 0.0f, 5.51f };
+            static const float kTy[3] = { -5.51f, 0.0f, 5.51f };                       // inner edge
+            static const float kTyOut[3] = { -5.86f, 0.0f, 5.85f };                    // outer edge: the stock halves end at y = -5.86 / +5.85
             static const float kTxIn[3] = { 38.92f, 39.30f, 38.92f }, kTxOut[3] = { 48.91f, 49.30f, 48.91f };
             u16 tid[6];
             int nt = 0;
@@ -1750,11 +1751,12 @@ static void PortForbiddenWall(glModel* pModel)
                     const float wz = e ? 13.9f : 9.44f;
                     u8* pv = (u8*)pos->address + (size_t)v * pos->stride;
                     PortStoreBE16(pv, (int)floorf((wx - m->tx) * 256.0f + 0.5f));
-                    PortStoreBE16(pv + 2, (int)floorf((kTy[j] - m->ty) * 256.0f + 0.5f));
+                    PortStoreBE16(pv + 2, (int)floorf(((e ? kTyOut[j] : kTy[j]) - m->ty) * 256.0f + 0.5f));
                     PortStoreBE16(pv + 4, (int)floorf((wz - m->tz) * 256.0f + 0.5f));
                     u8* pu = (u8*)uv->address + (size_t)v * uv->stride;
                     PortStoreBE16(pu, e ? 1134 : 276);
-                    PortStoreBE16(pu + 2, (int)floorf(-683.0f - (5.51f - kTy[j]) * 76.2f + 0.5f));
+                    // both stock halves have v = -683 on their edge of the gap and v growing away from it; fold toward the middle so the edges meet
+                    PortStoreBE16(pu + 2, (int)floorf(-683.0f - (5.51f - fabsf(kTy[j])) * 69.8f + 0.5f));
                     if (nrm != NULL && nrm->stride >= 3)
                     {
                         u8* pnn = (u8*)nrm->address + (size_t)v * nrm->stride;
