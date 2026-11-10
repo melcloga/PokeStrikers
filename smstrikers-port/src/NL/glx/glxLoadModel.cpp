@@ -1487,40 +1487,44 @@ static void PortForbiddenLedge(glModel* pModel)
                 nz[a2] = -0.9f - drop;
             }
         }
-        // The ledge's cut end on the jumbotron side (the end cap, the faces in the last stretch before y = 5.5): drawn as a plain dark navy
-        // plate, like the thick dark border along the top, instead of the gradient. A cap triangle is one whose three corners all lie
-        // within 5.7 of the middle line at the +x end; only vertices used by nothing else are recoloured, so the long faces are untouched.
-        std::vector<unsigned char> capOnly(65536, 0);
+        // The ledge's cut end on the jumbotron side is open (the stock mesh has no end face), so the front face just stops. Close it with a
+        // plain dark navy plate, like the thick dark border along the top: the end's cross-section (the corners of the profile within 5.7 of
+        // the middle line at the +x end) becomes a polygon, drawn only in the static layer (opaque navy) as extra triangles.
+        std::vector<float> capX, capY, capZ;
         {
-            std::vector<int> idToA(65536, -1);
-            for (size_t a2 = 0; a2 < n; a2++)
-                idToA[ids[a2]] = (int)a2;
-            std::vector<unsigned char> inCap(65536, 0), inOther(65536, 0);
             const float yOff = b3 ? -9.0f : 9.0f;
-            for (int i = 2; i < (int)p->numVertices; i++)
-            {
-                const int t0 = idx[i - 2], t1 = idx[i - 1], t2 = idx[i];
-                if (t0 == t1 || t1 == t2 || t0 == t2)
-                    continue;
-                const int ta[3] = { idToA[t0], idToA[t1], idToA[t2] };
-                if (ta[0] < 0 || ta[1] < 0 || ta[2] < 0)
-                    continue;
-                bool cap = true;
-                for (int c = 0; c < 3; c++)
-                    if (!(nx[ta[c]] + 0.7f > 30.0f && fabsf(ny[ta[c]] + yOff) < 5.7f))
-                        cap = false;
-                const int tid[3] = { t0, t1, t2 };
-                for (int c = 0; c < 3; c++)
-                    (cap ? inCap : inOther)[tid[c]] = 1;
-            }
-            int nCap = 0;
             for (size_t a2 = 0; a2 < n; a2++)
-                if (inCap[ids[a2]] && !inOther[ids[a2]])
+            {
+                if (!(nx[a2] + 0.7f > 30.0f && fabsf(ny[a2] + yOff) < 5.7f))
+                    continue;
+                bool dup = false;
+                for (size_t q = 0; q < capX.size(); q++)
+                    if (fabsf(capX[q] - nx[a2]) < 0.02f && fabsf(capY[q] - ny[a2]) < 0.02f && fabsf(capZ[q] - nz[a2]) < 0.02f)
+                        dup = true;
+                if (!dup && capX.size() < 8)
                 {
-                    capOnly[ids[a2]] = 1;
-                    nCap++;
+                    capX.push_back(nx[a2]); capY.push_back(ny[a2]); capZ.push_back(nz[a2]);
                 }
-            fprintf(stderr, "FDLEDGE endcap model=%08x vertices=%d\n", (unsigned)pModel->id, nCap);
+            }
+            if (capX.size() >= 3)
+            {
+                float cx = 0.0f, cz = 0.0f;
+                for (size_t q = 0; q < capX.size(); q++) { cx += capX[q]; cz += capZ[q]; }
+                cx /= (float)capX.size(); cz /= (float)capX.size();
+                for (size_t a = 0; a < capX.size(); a++)         // order around the middle of the cross-section
+                    for (size_t b = a + 1; b < capX.size(); b++)
+                        if (atan2f(capZ[b] - cz, capX[b] - cx) < atan2f(capZ[a] - cz, capX[a] - cx))
+                        {
+                            float t = capX[a]; capX[a] = capX[b]; capX[b] = t;
+                            t = capY[a]; capY[a] = capY[b]; capY[b] = t;
+                            t = capZ[a]; capZ[a] = capZ[b]; capZ[b] = t;
+                        }
+            }
+            else
+            {
+                capX.clear(); capY.clear(); capZ.clear();
+            }
+            fprintf(stderr, "FDLEDGE endcap model=%08x corners=%d\n", (unsigned)pModel->id, (int)capX.size());
         }
         const float totalH = 1.8f + drop;
         PortLedgeEntry entry;
@@ -1569,17 +1573,8 @@ static void PortForbiddenLedge(glModel* pModel)
                 if (us < 0.0f) us = 0.0f;
                 if (us > 1.0f) us = 1.0f;
                 if (b3) us = 1.0f - us; // seen from the field the far ledge runs the other way; keep the logos readable
-                if (capOnly[ids[a2]])
-                {
-                    us = 500.0f / 1024.0f;       // a plain navy spot of the static texture
-                    staticU.push_back(us);
-                    staticV.push_back(64.0f / 1024.0f);
-                }
-                else
-                {
-                    staticU.push_back(us);
-                    staticV.push_back(v);
-                }
+                staticU.push_back(us);
+                staticV.push_back(v);
             }
             if (col != NULL && col->stride >= 4)
             {
@@ -1641,9 +1636,85 @@ static void PortForbiddenLedge(glModel* pModel)
                     ns[st].dataSize = (u32)pbytes;
                 }
             }
+            const int K = (int)capX.size();
+            u16* newIdx = NULL;
+            int newN = (int)p->numVertices;
+            if (K >= 3 && maxId + K < 65000)
+            {
+                // room for the plate's corners in every stream of the static layer's copy
+                for (int st = 0; st < (int)p->numStreams; st++)
+                {
+                    const size_t stride = ns[st].stride;
+                    const size_t oldBytes = (size_t)(maxId + 1) * stride;
+                    u8* nb = (u8*)malloc((size_t)(maxId + 1 + K) * stride);
+                    memcpy(nb, (const void*)ns[st].address, oldBytes);
+                    for (int q = 0; q < K; q++)
+                    {
+                        u8* d = nb + (size_t)(maxId + 1 + q) * stride;
+                        if (ns[st].id == 0)
+                        {
+                            if (stride >= 12)
+                            {
+                                PortStoreBEF32(d, capX[q]); PortStoreBEF32(d + 4, capY[q]); PortStoreBEF32(d + 8, capZ[q]);
+                            }
+                            else
+                            {
+                                PortStoreBE16(d, (int)floorf(capX[q] * 256.0f + 0.5f));
+                                PortStoreBE16(d + 2, (int)floorf(capY[q] * 256.0f + 0.5f));
+                                PortStoreBE16(d + 4, (int)floorf(capZ[q] * 256.0f + 0.5f));
+                            }
+                        }
+                        else if (ns[st].id == 3)
+                        {
+                            PortStoreBE16(d, (int)floorf(500.0f + 0.5f));      // a plain navy spot of the static texture
+                            PortStoreBE16(d + 2, 64);
+                        }
+                        else if (ns[st].id == 1 && stride >= 3)
+                        {
+                            d[0] = 0; d[1] = (u8)(s8)(b3 ? 64 : -64); d[2] = 0;   // toward the middle of the end
+                        }
+                        else if (ns[st].id == 2 && stride >= 4)
+                        {
+                            d[0] = 255; d[1] = 255; d[2] = 255; d[3] = 255;
+                        }
+                        else
+                            memset(d, 0, stride);
+                    }
+                    ns[st].address = (uintptr_t)nb;
+                    ns[st].dataSize = (u32)((size_t)(maxId + 1 + K) * stride);
+                }
+                // the plate as two triangle strips (both windings, so it shows whichever way faces are culled), joined to the ledge's strip
+                const int N0 = (int)p->numVertices;
+                newN = N0 + 2 * (2 + K);
+                newIdx = (u16*)malloc((size_t)newN * sizeof(u16));
+                memcpy(newIdx, (const void*)p->indexBuffer, (size_t)N0 * sizeof(u16));
+                int w2 = N0;
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    u16 order[8];
+                    int lo = 1, hi = K - 1, o = 0;
+                    order[o++] = (u16)(maxId + 1);
+                    bool takeLo = true;
+                    while (lo <= hi)
+                    {
+                        order[o++] = (u16)(maxId + 1 + (takeLo ? lo++ : hi--));
+                        takeLo = !takeLo;
+                    }
+                    if (pass == 1)
+                        for (int a3 = 0, b3i = K - 1; a3 < b3i; a3++, b3i--) { const u16 t = order[a3]; order[a3] = order[b3i]; order[b3i] = t; }
+                    newIdx[w2] = newIdx[w2 - 1]; w2++;
+                    newIdx[w2++] = order[0];
+                    for (int q = 0; q < K; q++) newIdx[w2++] = order[q];
+                }
+            }
             glModelPacket* c = (glModelPacket*)malloc(sizeof(glModelPacket));
             memcpy(c, p, sizeof(glModelPacket));
             c->streams = ns;
+            if (newIdx != NULL)
+            {
+                c->indexBuffer = (uintptr_t)newIdx;
+                c->numVertices = (u16)newN;
+            }
             c->state.texture[0] = (uintptr_t)0x49ef0df6u;
             glSetRasterState(c->state.raster, GLS_AlphaBlend, 1);
             glSetRasterState(c->state.raster, GLS_DepthWrite, 0);
